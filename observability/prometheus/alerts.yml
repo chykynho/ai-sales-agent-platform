@@ -47,3 +47,33 @@ groups:
           severity: warning
         annotations:
           summary: "Falhas de ferramentas acima de 10%"
+
+  - name: ai-sales-agent-resilience
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: max(circuit_breaker_open) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker aberto para dependência externa"
+
+      - alert: HighRateLimitRejection
+        expr: |
+          sum(rate(rate_limit_decisions_total{decision="rejected"}[5m]))
+          /
+          clamp_min(sum(rate(rate_limit_decisions_total[5m])), 0.001)
+          > 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mais de 10% das requisições estão sendo limitadas"
+
+      - alert: BulkheadRejectingRequests
+        expr: sum(rate(bulkhead_rejections_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bulkhead rejeitando operações por saturação"

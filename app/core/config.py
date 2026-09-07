@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     api_v1_prefix: str = "/api/v1"
-    app_version: str = "0.12.0"
+    app_version: str = "0.13.0"
 
     secret_key: str = "CHANGE_ME_WITH_A_LONG_RANDOM_SECRET"
     access_token_expire_minutes: int = 60
@@ -82,6 +82,32 @@ class Settings(BaseSettings):
     observability_otlp_timeout_seconds: float = 5.0
     observability_trace_console: bool = False
     observability_tenant_labels: bool = True
+
+    # v0.13 Resiliência / Performance / Load Testing
+    resilience_enabled: bool = True
+    resilience_fail_open: bool = True
+    resilience_rate_limit_enabled: bool = True
+    resilience_rate_limit_requests: int = 600
+    resilience_rate_limit_window_seconds: int = 60
+    resilience_rate_limit_exempt_paths: str = "/metrics,/api/v1/health/live,/api/v1/health/ready,/docs,/openapi.json"
+    resilience_bulkhead_enabled: bool = True
+    resilience_bulkhead_llm_concurrency: int = 16
+    resilience_bulkhead_acquire_timeout_seconds: float = 0.25
+    resilience_circuit_breaker_enabled: bool = True
+    resilience_circuit_failure_threshold: int = 5
+    resilience_circuit_failure_window_seconds: int = 60
+    resilience_circuit_cooldown_seconds: int = 30
+    resilience_circuit_probe_lock_seconds: int = 10
+    # O SDK OpenAI já possui retries internos. Mantemos 1 tentativa externa por padrão
+    # para não multiplicar chamadas; aumente somente para providers sem retry próprio.
+    resilience_retry_max_attempts: int = 1
+    resilience_retry_base_delay_seconds: float = 0.25
+    resilience_retry_max_delay_seconds: float = 2.0
+    resilience_retry_jitter_seconds: float = 0.10
+    load_test_concurrency: int = 20
+    load_test_requests: int = 200
+    load_test_p95_threshold_ms: float = 750.0
+    load_test_error_rate_threshold_pct: float = 1.0
 
     bootstrap_tenant_name: str = "Demo Tenant"
     bootstrap_tenant_slug: str = "demo"

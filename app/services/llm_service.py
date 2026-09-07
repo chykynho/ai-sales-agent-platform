@@ -17,6 +17,8 @@ from app.models.agent_run import AgentRun
 from app.models.user import User
 from app.observability.metrics import observe_llm_failure, observe_llm_success
 from app.services.tool_service import ToolService
+from app.resilience.exceptions import BulkheadRejectedError, CircuitOpenError
+from app.resilience.manager import resilience_manager
 from app.tools.exceptions import ToolExecutionError
 
 
@@ -52,6 +54,21 @@ class LLMService:
     @staticmethod
     def _model(provider_name: str) -> str:
         return settings.openai_model if provider_name == "openai" else settings.mock_model
+
+
+    async def _provider_call(self, operation):
+        if self.provider.name != "openai" or not settings.resilience_enabled:
+            return await operation()
+        try:
+            return await resilience_manager.execute(
+                "openai",
+                operation,
+                should_retry=lambda exc: isinstance(exc, LLMProviderError) and exc.retryable,
+            )
+        except CircuitOpenError as exc:
+            raise LLMProviderError(str(exc), code="circuit_open", retryable=True) from exc
+        except BulkheadRejectedError as exc:
+            raise LLMProviderError(str(exc), code="bulkhead_rejected", retryable=True) from exc
 
     async def _start_run(self, *, db: AsyncSession, current_user: User, operation: str, input_text: str) -> AgentRun:
         run = AgentRun(
@@ -116,11 +133,11 @@ class LLMService:
         run = await self._start_run(db=db, current_user=current_user, operation=operation, input_text=input_text)
         started = time.perf_counter()
         try:
-            result = await self.provider.generate(
+            result = await self._provider_call(lambda: self.provider.generate(
                 input_text=input_text,
                 instructions=instructions or DEFAULT_INSTRUCTIONS,
                 model=self._model(self.provider.name),
-            )
+            ))
         except LLMProviderError as exc:
             latency_ms = max(0, round((time.perf_counter() - started) * 1000))
             await self._fail_run(db=db, run=run, exc=exc, latency_ms=latency_ms, code=exc.code)
@@ -143,13 +160,13 @@ class LLMService:
         run = await self._start_run(db=db, current_user=current_user, operation=operation, input_text=input_text)
         started = time.perf_counter()
         try:
-            result = await self.provider.generate_structured(
+            result = await self._provider_call(lambda: self.provider.generate_structured(
                 input_text=input_text,
                 instructions=instructions,
                 model=self._model(self.provider.name),
                 schema_name=schema_name,
                 json_schema=output_model.model_json_schema(),
-            )
+            ))
             parsed = output_model.model_validate(result.structured_data)
             result.structured_data = parsed.model_dump(mode="json")
         except LLMProviderError as exc:
@@ -192,12 +209,12 @@ class LLMService:
 
         try:
             for _ in range(max_turns):
-                turn = await self.provider.generate_with_tools(
+                turn = await self._provider_call(lambda: self.provider.generate_with_tools(
                     input_data=input_data,
                     instructions=instructions or TOOL_AGENT_INSTRUCTIONS,
                     model=model,
                     tools=tool_service.registry.definitions(),
-                )
+                ))
                 provider_responses += 1
                 last_request_id = turn.request_id or last_request_id
                 aggregate.add(turn.usage)

@@ -204,3 +204,45 @@ def observe_llm_failure(*, run: Any, latency_ms: int) -> None:
     LLM_DURATION.labels(provider, model, operation).observe(max(0.0, latency_ms / 1000))
     AGENT_RUNS.labels(operation, "failed").inc()
     AGENT_RUN_DURATION.labels(operation).observe(max(0.0, latency_ms / 1000))
+
+# v0.13 Resiliência / Performance
+RATE_LIMIT_DECISIONS = Counter(
+    "rate_limit_decisions_total",
+    "Decisões do rate limiter por escopo e resultado.",
+    ("scope", "decision"),
+)
+RESILIENCE_FAIL_OPEN = Counter(
+    "resilience_fail_open_total",
+    "Falhas de mecanismos de resiliência tratadas em modo fail-open.",
+    ("component",),
+)
+BULKHEAD_REJECTIONS = Counter(
+    "bulkhead_rejections_total",
+    "Operações rejeitadas por bulkhead sem capacidade.",
+    ("dependency",),
+)
+BULKHEAD_IN_FLIGHT = Gauge(
+    "bulkhead_in_flight",
+    "Operações atuais dentro do bulkhead por dependência.",
+    ("dependency",),
+)
+CIRCUIT_BREAKER_EVENTS = Counter(
+    "circuit_breaker_events_total",
+    "Eventos do circuit breaker por dependência.",
+    ("dependency", "event"),
+)
+CIRCUIT_BREAKER_OPEN = Gauge(
+    "circuit_breaker_open",
+    "Estado do circuit breaker: 1=open, 0=closed/half-open.",
+    ("dependency",),
+)
+RESILIENCE_RETRIES = Counter(
+    "resilience_retries_total",
+    "Retries externos agendados pela camada de resiliência.",
+    ("dependency", "outcome"),
+)
+LOAD_TEST_REQUESTS = Counter(
+    "load_test_requests_total",
+    "Requisições registradas pelo harness de carga interno.",
+    ("profile", "status"),
+)

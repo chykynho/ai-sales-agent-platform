@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import agent, ai, auth, channels, conversations, customers, health, knowledge, leads, observability, tenant_config, users, voice
+from app.api.routes import agent, ai, auth, channels, conversations, customers, health, knowledge, leads, observability, resilience, tenant_config, users, voice
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -15,5 +15,6 @@ api_router.include_router(knowledge.router)
 api_router.include_router(tenant_config.router)
 api_router.include_router(channels.router)
 api_router.include_router(observability.router)
+api_router.include_router(resilience.router)
 
 api_router.include_router(voice.router)

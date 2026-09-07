@@ -14,6 +14,7 @@ from app.embeddings.factory import close_embedding_provider
 from app.llm.factory import close_llm_provider
 from app.observability.middleware import ObservabilityMiddleware
 from app.observability.tracing import configure_tracing
+from app.resilience.middleware import ResilienceMiddleware
 
 configure_logging(settings.app_debug)
 configure_tracing(sqlalchemy_engine=engine, redis_client=redis_client)
@@ -38,6 +39,7 @@ app = FastAPI(
     debug=settings.app_debug,
     lifespan=lifespan,
 )
+app.add_middleware(ResilienceMiddleware)
 app.add_middleware(ObservabilityMiddleware)
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 

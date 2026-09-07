@@ -1,10 +1,10 @@
-# AI Sales Agent Platform v0.12.0
+# AI Sales Agent Platform v0.13.0
 
 Plataforma SaaS multi-tenant de agentes comerciais de IA, construída como projeto de portfólio orientado a produção.
 
-> **v0.12:** adiciona Observabilidade/SRE com logs JSON correlacionados, Prometheus, OpenTelemetry, Golden Signals, health separado em liveness/readiness e stack local opcional Prometheus + Grafana + Tempo.
+> **v0.13:** adiciona resiliência e performance com rate limiting distribuído em Redis, circuit breaker compartilhado, bulkhead para OpenAI, política de retry sem amplification e load testing seguro com p50/p95/p99, throughput e error rate.
 
-A v0.11.1 permanece como baseline funcional imediatamente anterior: telefonia hardened com `X-Twilio-Signature`, callbacks de chamada/stream, PCMU → VAD → `gpt-transcribe` → LangGraph/tools → OpenAI Realtime, mantendo `PSTN connected=false` até existir conexão Twilio real.
+A v0.12.0 permanece como baseline funcional imediatamente anterior: Observabilidade/SRE com Prometheus, Grafana, Tempo, OpenTelemetry, logs JSON, Golden Signals e 35 testes, sobre a telefonia hardened da v0.11.1.
 
 ## Capacidades atuais
 
@@ -23,7 +23,46 @@ A v0.11.1 permanece como baseline funcional imediatamente anterior: telefonia ha
 - Prometheus metrics;
 - logs estruturados JSON;
 - OpenTelemetry tracing;
-- dashboards/alertas SRE opcionais com Prometheus, Grafana e Tempo.
+- dashboards/alertas SRE opcionais com Prometheus, Grafana e Tempo;
+- rate limiting distribuído em Redis;
+- circuit breaker Redis com half-open probe;
+- bulkhead para concorrência OpenAI;
+- harness de carga seguro e reproduzível.
+
+
+## v0.13 — Resiliência, Performance e Load Testing
+
+A v0.13 protege a API contra picos e falhas externas sem remover os mecanismos de observabilidade da v0.12.
+
+### Proteções
+
+- rate limiting atômico em Redis por tenant JWT ou cliente sem JWT;
+- HTTP 429 com `Retry-After` e headers `X-RateLimit-*`;
+- circuit breaker distribuído em Redis para OpenAI;
+- transição `closed -> open -> half-open probe -> closed/open`;
+- bulkhead por processo para limitar concorrência LLM;
+- fail-open configurável quando o Redis de resiliência fica indisponível;
+- retry externo configurável, com 1 tentativa por padrão para não duplicar os retries do SDK OpenAI.
+
+### Teste de carga seguro
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\scripts\test_v13.ps1
+```
+
+O perfil padrão executa 200 requests com concorrência 20 em `/api/v1/users/me`, portanto não chama LLM real e não gera custo OpenAI. O relatório mostra throughput, error rate e latências min/avg/p50/p95/p99/max.
+
+### Métricas de resiliência
+
+```text
+rate_limit_decisions_total
+resilience_fail_open_total
+bulkhead_rejections_total
+bulkhead_in_flight
+circuit_breaker_events_total
+circuit_breaker_open
+resilience_retries_total
+```
 
 ## v0.12 — Observabilidade/SRE
 
@@ -83,7 +122,7 @@ PowerShell -ExecutionPolicy Bypass -File .\scripts\upgrade_v12.ps1
 Alvo esperado:
 
 ```text
-34 passed
+35 passed
 === v0.12 UPGRADE APPLIED ===
 ```
 
@@ -122,6 +161,9 @@ O dashboard `AI Sales Agent Platform - SRE / Golden Signals` é provisionado aut
 
 ## Documentação
 
+- `V0.13.md` — resiliência, performance e load testing;
+- `UPGRADE_v0.13.0.md` — aplicação da v0.13;
+- `VALIDACAO_v0.13_PTBR.md` — critérios da v0.13;
 - `V0.12.md` — arquitetura e escopo;
 - `UPGRADE_v0.12.0.md` — aplicação;
 - `VALIDACAO_v0.12_PTBR.md` — critérios de teste;

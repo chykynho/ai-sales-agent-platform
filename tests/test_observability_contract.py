@@ -13,7 +13,8 @@ from app.observability.redaction import redact_value
 
 
 def test_v012_settings_contract():
-    assert settings.app_version == "0.12.0"
+    major, minor, patch = (int(part) for part in settings.app_version.split("."))
+    assert (major, minor, patch) >= (0, 12, 0)
     assert settings.observability_enabled is True
     assert settings.observability_metrics_enabled is True
     assert settings.observability_tracing_enabled is True
