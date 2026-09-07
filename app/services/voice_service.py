@@ -18,6 +18,9 @@ from app.models.customer import Customer
 from app.models.message import Message, MessageRole
 from app.models.user import User
 from app.models.voice import VoiceEvent, VoiceSession
+from app.observability.context import bind_context
+from app.observability.metrics import VOICE_SESSIONS, VOICE_SESSION_DURATION, enabled as metrics_enabled
+from app.observability.tracing import tracer
 from app.services.llm_service import LLMService
 from app.services.tenant_config_service import TenantConfigService
 from app.services.tool_service import ToolService
@@ -144,6 +147,7 @@ class VoiceService:
         db.add(session)
         await db.commit()
         await db.refresh(session)
+        bind_context(tenant_id=str(current_user.tenant_id), call_sid=provider_call_id)
         started = time.perf_counter()
 
         try:
@@ -186,6 +190,7 @@ class VoiceService:
                 db.add(conversation)
                 await db.flush()
             session.conversation_id = conversation.id
+            bind_context(conversation_id=str(conversation.id))
 
             db.add(Message(
                 tenant_id=current_user.tenant_id,
@@ -226,17 +231,20 @@ class VoiceService:
             if tuple(getattr(before, "interrupts", ()) or ()):
                 answer = "Esta chamada aguarda atendimento humano antes de continuar."
             else:
-                await graph.ainvoke({
-                    "latest_input": transcript,
-                    "external_thread_id": thread_id,
-                    "tenant_id": str(current_user.tenant_id),
-                    "messages": [{"role": "user", "content": transcript}],
-                    "human_required": False,
-                    "human_review_status": "none",
-                    "human_review_note": "",
-                    "reviewed_by_user_id": "",
-                    "final_output": "",
-                }, config=config, context=context)
+                with tracer("app.agent").start_as_current_span("agent.langgraph.voice") as span:
+                    span.set_attribute("saas.tenant.id", str(current_user.tenant_id))
+                    span.set_attribute("agent.thread_id", thread_id)
+                    await graph.ainvoke({
+                        "latest_input": transcript,
+                        "external_thread_id": thread_id,
+                        "tenant_id": str(current_user.tenant_id),
+                        "messages": [{"role": "user", "content": transcript}],
+                        "human_required": False,
+                        "human_review_status": "none",
+                        "human_review_note": "",
+                        "reviewed_by_user_id": "",
+                        "final_output": "",
+                    }, config=config, context=context)
                 after = await graph.aget_state(config)
                 values = dict(getattr(after, "values", {}) or {})
                 pending = tuple(getattr(after, "interrupts", ()) or ())
@@ -286,6 +294,9 @@ class VoiceService:
             }
             await db.commit()
             await db.refresh(session)
+            if metrics_enabled():
+                VOICE_SESSIONS.labels(provider, "completed").inc()
+                VOICE_SESSION_DURATION.labels(provider).observe(max(0.0, session.latency_ms / 1000))
             return VoiceTurnResult(session, False, audio.transcript, audio.audio_data)
         except Exception as exc:
             await db.rollback()
@@ -298,4 +309,7 @@ class VoiceService:
                 failed.error_message = str(exc)[:2000]
                 failed.latency_ms = int((time.perf_counter() - started) * 1000)
                 await db.commit()
+                if metrics_enabled():
+                    VOICE_SESSIONS.labels(provider, "failed").inc()
+                    VOICE_SESSION_DURATION.labels(provider).observe(max(0.0, failed.latency_ms / 1000))
             raise

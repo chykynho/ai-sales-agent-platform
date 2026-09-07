@@ -1,5 +1,6 @@
 from __future__ import annotations
 import hashlib
+import time
 import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -11,6 +12,8 @@ from app.knowledge.chunking import chunk_sections
 from app.knowledge.parsers import extract_sections
 from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
 from app.models.user import User
+from app.observability.metrics import RAG_DURATION, RAG_RESULTS, RAG_SEARCHES, enabled as metrics_enabled
+from app.observability.tracing import tracer
 from app.services.tenant_config_service import TenantConfigService
 from app.schemas.knowledge import KnowledgeSourceRead
 if TYPE_CHECKING:
@@ -63,22 +66,43 @@ class KnowledgeService:
         return list(result.scalars())
 
     async def search(self, *, db: AsyncSession, current_user: User, query: str, top_k: int | None=None, tenant_config=None):
-        tenant_config = tenant_config or await TenantConfigService().get(db=db, tenant_id=current_user.tenant_id)
-        emb=await self.embedding_provider.embed([query])
-        qvec=emb.vectors[0]
-        distance=KnowledgeChunk.embedding.cosine_distance(qvec).label("distance")
-        stmt=(select(KnowledgeChunk, KnowledgeDocument, distance)
-              .join(KnowledgeDocument, KnowledgeDocument.id==KnowledgeChunk.document_id)
-              .where(KnowledgeChunk.tenant_id==current_user.tenant_id, KnowledgeDocument.tenant_id==current_user.tenant_id, KnowledgeDocument.status=="active")
-              .order_by(distance)
-              .limit(top_k or tenant_config.rag_top_k))
-        rows=(await db.execute(stmt)).all()
-        sources=[]
-        for rank,(chunk,doc,dist) in enumerate(rows,1):
-            similarity=max(-1.0, min(1.0, 1.0-float(dist)))
-            if similarity < float(tenant_config.rag_min_similarity): continue
-            sources.append(KnowledgeSourceRead(rank=rank, document_id=doc.id, filename=doc.filename, version=doc.version, chunk_id=chunk.id, chunk_index=chunk.chunk_index, page_number=chunk.page_number, similarity=round(similarity,6), content=chunk.content))
-        return emb, sources
+        started = time.perf_counter()
+        status = "completed"
+        try:
+            with tracer("app.rag").start_as_current_span("rag.search") as span:
+                span.set_attribute("saas.tenant.id", str(current_user.tenant_id))
+                tenant_config = tenant_config or await TenantConfigService().get(db=db, tenant_id=current_user.tenant_id)
+                limit = int(top_k or tenant_config.rag_top_k)
+                span.set_attribute("rag.top_k", limit)
+                emb=await self.embedding_provider.embed([query])
+                qvec=emb.vectors[0]
+                distance=KnowledgeChunk.embedding.cosine_distance(qvec).label("distance")
+                stmt=(select(KnowledgeChunk, KnowledgeDocument, distance)
+                      .join(KnowledgeDocument, KnowledgeDocument.id==KnowledgeChunk.document_id)
+                      .where(KnowledgeChunk.tenant_id==current_user.tenant_id, KnowledgeDocument.tenant_id==current_user.tenant_id, KnowledgeDocument.status=="active")
+                      .order_by(distance)
+                      .limit(limit))
+                rows=(await db.execute(stmt)).all()
+                sources=[]
+                for rank,(chunk,doc,dist) in enumerate(rows,1):
+                    similarity=max(-1.0, min(1.0, 1.0-float(dist)))
+                    if similarity < float(tenant_config.rag_min_similarity): continue
+                    sources.append(KnowledgeSourceRead(rank=rank, document_id=doc.id, filename=doc.filename, version=doc.version, chunk_id=chunk.id, chunk_index=chunk.chunk_index, page_number=chunk.page_number, similarity=round(similarity,6), content=chunk.content))
+                span.set_attribute("rag.results", len(sources))
+                return emb, sources
+        except Exception:
+            status = "failed"
+            raise
+        finally:
+            elapsed = max(0.0, time.perf_counter() - started)
+            if metrics_enabled():
+                RAG_SEARCHES.labels(status).inc()
+                RAG_DURATION.observe(elapsed)
+                if status == "completed":
+                    try:
+                        RAG_RESULTS.observe(len(sources))
+                    except UnboundLocalError:
+                        pass
 
     async def answer(
         self,

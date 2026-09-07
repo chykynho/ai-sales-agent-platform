@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     api_v1_prefix: str = "/api/v1"
+    app_version: str = "0.12.0"
 
     secret_key: str = "CHANGE_ME_WITH_A_LONG_RANDOM_SECRET"
     access_token_expire_minutes: int = 60
@@ -70,6 +71,17 @@ class Settings(BaseSettings):
     voice_vad_min_speech_ms: int = 240
     voice_vad_max_utterance_ms: int = 15000
     voice_production_first_turn_only: bool = True
+
+    # v0.12 Observability / SRE
+    observability_enabled: bool = True
+    observability_log_json: bool = True
+    observability_metrics_enabled: bool = True
+    observability_tracing_enabled: bool = True
+    observability_service_name: str = "ai-sales-agent-platform"
+    observability_otlp_endpoint: str | None = None
+    observability_otlp_timeout_seconds: float = 5.0
+    observability_trace_console: bool = False
+    observability_tenant_labels: bool = True
 
     bootstrap_tenant_name: str = "Demo Tenant"
     bootstrap_tenant_slug: str = "demo"

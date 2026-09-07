@@ -15,6 +15,7 @@ from app.llm.pricing import estimate_openai_cost
 from app.llm.types import LLMResult, TokenUsage
 from app.models.agent_run import AgentRun
 from app.models.user import User
+from app.observability.metrics import observe_llm_failure, observe_llm_success
 from app.services.tool_service import ToolService
 from app.tools.exceptions import ToolExecutionError
 
@@ -101,6 +102,7 @@ class LLMService:
             run.estimated_cost_usd = None
         await db.commit()
         await db.refresh(run)
+        observe_llm_success(run=run, result=result, latency_ms=latency_ms)
 
     async def _fail_run(self, *, db: AsyncSession, run: AgentRun, exc: Exception, latency_ms: int, code: str) -> None:
         run.status = "failed"
@@ -108,6 +110,7 @@ class LLMService:
         run.error_code = code
         run.error_message = str(exc)[:2000]
         await db.commit()
+        observe_llm_failure(run=run, latency_ms=latency_ms)
 
     async def generate(self, *, db: AsyncSession, current_user: User, input_text: str, instructions: str | None = None, operation: str = "generate") -> tuple[AgentRun, LLMResult]:
         run = await self._start_run(db=db, current_user=current_user, operation=operation, input_text=input_text)

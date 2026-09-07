@@ -12,6 +12,9 @@ from app.db.session import AsyncSessionLocal
 from app.models.channel import ChannelAccount
 from app.models.user import User
 from app.models.voice import VoiceEvent, VoiceSession
+from app.observability.context import bind_context, clear_context
+from app.observability.metrics import ACTIVE_VOICE_SESSIONS, TWILIO_CALL_ERRORS, enabled as metrics_enabled
+from app.observability.tracing import tracer
 from app.services.voice_service import VoiceService
 from app.voice.mulaw import mulaw_rms
 from app.voice.transcription_client import OpenAITranscriptionClient
@@ -218,22 +221,27 @@ class TwilioMediaBridge:
 
     async def _process_production_utterance(self, audio: bytes) -> None:
         try:
-            result = await OpenAITranscriptionClient().transcribe_mulaw(audio)
-            transcript = result.text.strip()
-            self.last_transcript = transcript
-            self.metrics.transcription_turns += 1
-            self.metrics.transcription_audio_bytes += len(audio)
-            if not transcript:
-                return
-            if self.account is None or self.runtime_user is None:
-                raise RuntimeError("Contexto Twilio de producao nao carregado")
-            await self._produce_business_audio(
-                account=self.account,
-                runtime_user=self.runtime_user,
-                from_address=self.from_address,
-                transcript=transcript,
-                event_source="twilio_media_stream_production_stt",
-            )
+            with tracer("app.voice").start_as_current_span("voice.twilio.turn") as span:
+                span.set_attribute("voice.mode", self.mode)
+                span.set_attribute("audio.input.bytes", len(audio))
+                if self.call_sid:
+                    span.set_attribute("twilio.call_sid", self.call_sid)
+                result = await OpenAITranscriptionClient().transcribe_mulaw(audio)
+                transcript = result.text.strip()
+                self.last_transcript = transcript
+                self.metrics.transcription_turns += 1
+                self.metrics.transcription_audio_bytes += len(audio)
+                if not transcript:
+                    return
+                if self.account is None or self.runtime_user is None:
+                    raise RuntimeError("Contexto Twilio de producao nao carregado")
+                await self._produce_business_audio(
+                    account=self.account,
+                    runtime_user=self.runtime_user,
+                    from_address=self.from_address,
+                    transcript=transcript,
+                    event_source="twilio_media_stream_production_stt",
+                )
         except Exception:
             logger.exception("Falha ao transcrever/processar audio Twilio de producao")
             raise
@@ -273,6 +281,7 @@ class TwilioMediaBridge:
         if not self.provider_account_id:
             raise RuntimeError("provider_account_id obrigatorio no endpoint de producao")
         self.account, self.runtime_user = await self._load_account_and_user(self.provider_account_id)
+        bind_context(tenant_id=str(self.account.tenant_id))
         if self.account.outbound_mode != "twilio_media_stream":
             raise RuntimeError("Conta Voice nao esta em modo twilio_media_stream")
         if not validate_websocket_signature(websocket=self.websocket, account=self.account):
@@ -286,6 +295,8 @@ class TwilioMediaBridge:
                 raise RuntimeError("Modo de laboratorio da ponte Voice esta desabilitado")
         except Exception as exc:
             logger.warning("Handshake Twilio rejeitado: %s", exc)
+            if metrics_enabled():
+                TWILIO_CALL_ERRORS.labels("websocket-handshake").inc()
             try:
                 await self.websocket.close(code=1008, reason=str(exc)[:120])
             except Exception:
@@ -293,6 +304,8 @@ class TwilioMediaBridge:
             return
 
         await self.websocket.accept()
+        if metrics_enabled():
+            ACTIVE_VOICE_SESSIONS.labels(self.mode).inc()
         try:
             while True:
                 payload = await self.websocket.receive_json()
@@ -306,6 +319,7 @@ class TwilioMediaBridge:
                     start = parse_start_message(payload)
                     self.stream_sid = start["stream_sid"]
                     self.call_sid = start["call_sid"]
+                    bind_context(call_sid=self.call_sid)
                     params = start["custom_parameters"]
                     if self.mode == "production":
                         assert self.account is not None
@@ -383,6 +397,8 @@ class TwilioMediaBridge:
             except Exception:
                 pass
         finally:
+            if metrics_enabled():
+                ACTIVE_VOICE_SESSIONS.labels(self.mode).dec()
             for task in (self.input_task, self.output_task):
                 if task is not None:
                     try:
@@ -399,3 +415,4 @@ class TwilioMediaBridge:
                 await self.websocket.close()
             except Exception:
                 pass
+            clear_context()

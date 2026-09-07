@@ -1,71 +1,129 @@
-# AI Sales Agent Platform v0.11.0
+# AI Sales Agent Platform v0.12.0
 
-Plataforma de aprendizado e portfólio orientada a produção para agentes comerciais de IA multi-tenant.
+Plataforma SaaS multi-tenant de agentes comerciais de IA, construída como projeto de portfólio orientado a produção.
 
-A baseline `v0.10.5` foi validada localmente com 23/23 testes, isolamento Demo × Acme, persistência após restart da API, RAG/pgvector, LangGraph, HITL, WhatsApp em laboratório, OpenAI Realtime real e ponte Twilio Media Streams compatível em laboratório.
+> **v0.12:** adiciona Observabilidade/SRE com logs JSON correlacionados, Prometheus, OpenTelemetry, Golden Signals, health separado em liveness/readiness e stack local opcional Prometheus + Grafana + Tempo.
 
-## Arquitetura validada até a v0.10.5
+A v0.11.1 permanece como baseline funcional imediatamente anterior: telefonia hardened com `X-Twilio-Signature`, callbacks de chamada/stream, PCMU → VAD → `gpt-transcribe` → LangGraph/tools → OpenAI Realtime, mantendo `PSTN connected=false` até existir conexão Twilio real.
 
-- FastAPI com REST e WebSockets.
-- JWT, RBAC e isolamento por tenant.
-- PostgreSQL, Redis e Alembic.
-- OpenAI Responses com GPT-5.6 Terra.
-- Tool/function calling com schemas estritos, allowlist, auditoria e idempotência.
-- LangGraph com checkpoints persistentes em PostgreSQL.
-- Human-in-the-Loop com `interrupt()` / `Command(resume=...)`.
-- RAG com `text-embedding-3-small`, pgvector e índice HNSW/cosine.
-- Configuração SaaS por tenant: identidade, tools, catálogo, horários e parâmetros de RAG.
-- WhatsApp: challenge, assinatura HMAC, idempotência, ACK rápido e processamento em background.
-- Voice AI com `gpt-realtime-2.1`, voz `marin` e áudio PCMU.
-- Ponte Twilio Media Streams compatível com `media`, `mark`, `clear` e barge-in.
+## Capacidades atuais
 
-## Foco da v0.11 — Production Telephony Hardening
+- FastAPI REST + WebSockets;
+- JWT, RBAC e isolamento multi-tenant;
+- PostgreSQL 17, Redis 8, Alembic e pgvector;
+- OpenAI Responses, tools/function calling e auditoria;
+- LangGraph com checkpoints PostgreSQL;
+- Human-in-the-Loop persistente;
+- RAG com embeddings OpenAI + pgvector/HNSW;
+- configuração SaaS e catálogo por tenant;
+- WhatsApp webhook lab com HMAC/idempotência;
+- Voice AI com OpenAI Realtime;
+- Twilio Media Streams LAB + caminho hardened de produção;
+- STT com `gpt-transcribe`, PCMU 8 kHz, VAD e barge-in;
+- Prometheus metrics;
+- logs estruturados JSON;
+- OpenTelemetry tracing;
+- dashboards/alertas SRE opcionais com Prometheus, Grafana e Tempo.
 
-A v0.11 endurece a borda de telefonia sem afirmar conexão PSTN que ainda não existe:
+## v0.12 — Observabilidade/SRE
 
-- `twilio==9.11.0` e `RequestValidator` oficial.
-- validação de `X-Twilio-Signature` em webhooks HTTP;
-- validação de `X-Twilio-Signature` no handshake WSS;
-- endpoint público de chamada recebida por conta/tenant;
-- TwiML `<Connect><Stream>` com `statusCallback` e `customParameters`;
-- Call Status e Stream Status callbacks auditados;
-- readiness de produção por conta Twilio sem expor segredo;
-- separação explícita LAB × PROD;
-- produção sem `lab_transcript`;
-- áudio real `audio/x-mulaw` 8 kHz -> VAD local -> `gpt-transcribe` -> LangGraph/tools -> OpenAI Realtime PCMU;
-- Auth Token Twilio somente em variável de ambiente/secret manager; o banco guarda apenas o nome da variável.
+### Métricas
 
-## Limite deliberado da v0.11
+Endpoint:
 
-O caminho de produção processa **o primeiro turno de voz por chamada** por padrão (`VOICE_PRODUCTION_FIRST_TURN_ONLY=true`). O objetivo é validar de forma reproduzível a borda de produção e o pipeline de áudio/STT sem transformar o laboratório em uma falsa alegação de PSTN real.
+```text
+http://localhost:8000/metrics
+```
 
-Ainda não são considerados conectados em produção:
+A instrumentação cobre HTTP, tenants, LLM/tokens/custo, AgentRun, tools, RAG, Voice/STT/Realtime, Twilio e métricas do processo Python.
 
-- número/PSTN Twilio real;
-- tráfego originado da rede Twilio real;
-- conversa multi-turn contínua de produção;
-- SIP real.
+IDs únicos (`request_id`, `conversation_id`, `call_sid`, `trace_id`) ficam em logs/traces, não como labels Prometheus. Isso preserva correlação sem criar cardinalidade excessiva.
 
-## Aplicação
+### Logs
 
-Partindo da baseline `v0.10.5`, crie uma branch de trabalho antes do upgrade:
+Cada request recebe ou preserva `X-Request-ID` e retorna também `X-Trace-ID`. Logs de aplicação usam JSON e incluem o contexto disponível do tenant/conversa/chamada.
+
+### Tracing
+
+OpenTelemetry instrumenta spans HTTP e integra SQLAlchemy, Redis e HTTPX, além de spans manuais em tools, RAG e Voice. O OTLP exporter é opcional; sem Tempo configurado a API continua operacional.
+
+### Golden Signals
+
+- Latency;
+- Traffic;
+- Errors;
+- Saturation.
+
+### Health
+
+```text
+/api/v1/health/live
+/api/v1/health/ready
+```
+
+Readiness verifica PostgreSQL e Redis.
+
+## Instalação da v0.12
+
+Partindo da branch validada v0.11.1:
 
 ```powershell
-git switch main
+cd C:\AI\ai-sales-agent-platform-v0.1
+git switch feature/v0.11-production-telephony
 git pull
-git switch -c feature/v0.11-production-telephony
+git switch -c feature/v0.12-observability-sre
 ```
 
-Depois aplique o upgrade:
+Extraia o upgrade e execute:
 
 ```powershell
-PowerShell -ExecutionPolicy Bypass -File .\scripts\upgrade_v11.ps1
+PowerShell -ExecutionPolicy Bypass -File .\scripts\upgrade_v12.ps1
 ```
 
-Somente após o upgrade passar, execute:
+Alvo esperado:
+
+```text
+34 passed
+=== v0.12 UPGRADE APPLIED ===
+```
+
+Depois execute:
 
 ```powershell
-PowerShell -ExecutionPolicy Bypass -File .\scripts\test_v11.ps1
+PowerShell -ExecutionPolicy Bypass -File .\scripts\test_v12.ps1
 ```
 
-Consulte `V0.11.md` e `UPGRADE_v0.11.0.md` para escopo, segurança, limitações e sequência completa.
+## Stack visual opcional
+
+Depois da validação da API:
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\scripts\start_observability_v12.ps1
+PowerShell -ExecutionPolicy Bypass -File .\scripts\test_observability_stack_v12.ps1
+```
+
+URLs:
+
+```text
+Prometheus  http://localhost:9090
+Grafana     http://localhost:3000
+Tempo       http://localhost:3200
+```
+
+O dashboard `AI Sales Agent Platform - SRE / Golden Signals` é provisionado automaticamente.
+
+## Limitações explícitas
+
+- PSTN/número Twilio real ainda não conectado;
+- Meta WhatsApp Cloud real ainda não conectado;
+- Voice production permanece `first_turn_only=true` por padrão;
+- Grafana `admin/admin` é somente laboratório local;
+- `audioop` ainda existe no código de áudio Python 3.12 e deve ser substituído antes de Python 3.13.
+
+## Documentação
+
+- `V0.12.md` — arquitetura e escopo;
+- `UPGRADE_v0.12.0.md` — aplicação;
+- `VALIDACAO_v0.12_PTBR.md` — critérios de teste;
+- `V0.11.md` — telefonia hardened;
+- `HOTFIX_v0.11.1_PTBR.md` — correção do smoke de áudio.

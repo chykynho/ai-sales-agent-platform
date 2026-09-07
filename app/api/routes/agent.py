@@ -14,6 +14,7 @@ from app.db.session import get_db
 from app.llm.exceptions import LLMProviderError
 from app.llm.factory import create_llm_provider
 from app.models.user import User, UserRole
+from app.observability.tracing import tracer
 from app.schemas.agent import (
     AgentCheckpointRead,
     AgentInterruptRead,
@@ -182,21 +183,24 @@ async def send_thread_message(
         client_idempotency_key=idempotency_key or str(uuid.uuid4()),
     )
     try:
-        await graph.ainvoke(
-            {
-                "latest_input": payload.message,
-                "external_thread_id": thread_id,
-                "tenant_id": str(current_user.tenant_id),
-                "messages": [{"role": "user", "content": payload.message}],
-                "human_required": False,
-                "human_review_status": "none",
-                "human_review_note": "",
-                "reviewed_by_user_id": "",
-                "final_output": "",
-            },
-            config=config,
-            context=context,
-        )
+        with tracer("app.agent").start_as_current_span("agent.langgraph.message") as span:
+            span.set_attribute("saas.tenant.id", str(current_user.tenant_id))
+            span.set_attribute("agent.thread_id", thread_id)
+            await graph.ainvoke(
+                {
+                    "latest_input": payload.message,
+                    "external_thread_id": thread_id,
+                    "tenant_id": str(current_user.tenant_id),
+                    "messages": [{"role": "user", "content": payload.message}],
+                    "human_required": False,
+                    "human_review_status": "none",
+                    "human_review_note": "",
+                    "reviewed_by_user_id": "",
+                    "final_output": "",
+                },
+                config=config,
+                context=context,
+            )
     except Exception as exc:
         _raise_graph_exception(exc)
 
@@ -251,11 +255,14 @@ async def resume_thread(
         client_idempotency_key=idempotency_key or str(uuid.uuid4()),
     )
     try:
-        await graph.ainvoke(
-            Command(resume={pending[0].id: resume_value}),
-            config=config,
-            context=context,
-        )
+        with tracer("app.agent").start_as_current_span("agent.langgraph.resume") as span:
+            span.set_attribute("saas.tenant.id", str(current_user.tenant_id))
+            span.set_attribute("agent.thread_id", thread_id)
+            await graph.ainvoke(
+                Command(resume={pending[0].id: resume_value}),
+                config=config,
+                context=context,
+            )
     except Exception as exc:
         _raise_graph_exception(exc)
 

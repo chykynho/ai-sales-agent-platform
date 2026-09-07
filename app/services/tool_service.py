@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.tool_call import ToolCall
 from app.models.user import User, UserRole
+from app.observability.metrics import TOOL_CALLS, TOOL_DURATION, TOOL_ERRORS, enabled as metrics_enabled
+from app.observability.tracing import tracer
 from app.tools.exceptions import ToolExecutionError
 from app.tools.registry import ToolRegistry
 from app.tools.types import ToolContext
@@ -89,23 +91,30 @@ class ToolService:
 
         started = time.perf_counter()
         try:
-            result = await spec.handler(
-                ToolContext(
-                    db=db,
-                    current_user=current_user,
-                    agent_run_id=agent_run_id,
-                    provider_call_id=provider_call_id,
-                    idempotency_key=idempotency_key,
-                    arguments_hash=arguments_hash,
-                    tenant_config=self.tenant_config,
-                ),
-                parsed,
-            )
+            with tracer("app.tools").start_as_current_span(f"tool.{tool_name}") as span:
+                span.set_attribute("tool.name", tool_name)
+                span.set_attribute("saas.tenant.id", str(current_user.tenant_id))
+                span.set_attribute("tool.write_action", bool(spec.write_action))
+                result = await spec.handler(
+                    ToolContext(
+                        db=db,
+                        current_user=current_user,
+                        agent_run_id=agent_run_id,
+                        provider_call_id=provider_call_id,
+                        idempotency_key=idempotency_key,
+                        arguments_hash=arguments_hash,
+                        tenant_config=self.tenant_config,
+                    ),
+                    parsed,
+                )
             audit.status = "completed"
             audit.result_hash = self._hash(result)
             audit.latency_ms = max(0, round((time.perf_counter() - started) * 1000))
             await db.commit()
             await db.refresh(audit)
+            if metrics_enabled():
+                TOOL_CALLS.labels(tool_name, "completed").inc()
+                TOOL_DURATION.labels(tool_name).observe(audit.latency_ms / 1000)
             return audit, result
         except Exception as exc:
             await db.rollback()
@@ -126,6 +135,10 @@ class ToolService:
             )
             db.add(failed)
             await db.commit()
+            if metrics_enabled():
+                TOOL_CALLS.labels(tool_name, "failed").inc()
+                TOOL_DURATION.labels(tool_name).observe((failed.latency_ms or 0) / 1000)
+                TOOL_ERRORS.labels(tool_name, failed.error_code or "tool_runtime_error").inc()
             if isinstance(exc, ToolExecutionError):
                 raise exc
             raise ToolExecutionError(str(exc), code="tool_runtime_error") from exc

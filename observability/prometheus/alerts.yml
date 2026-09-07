@@ -1,0 +1,49 @@
+groups:
+  - name: ai-sales-agent-sre
+    rules:
+      - alert: APIHigh5xxRate
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API com mais de 5% de respostas 5xx"
+
+      - alert: APIHighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência HTTP p95 acima de 2 segundos"
+
+      - alert: LLMHighFailureRate
+        expr: |
+          sum(rate(llm_requests_total{status="failed"}[10m]))
+          /
+          clamp_min(sum(rate(llm_requests_total[10m])), 0.001)
+          > 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Falhas LLM acima de 10%"
+
+      - alert: ToolHighFailureRate
+        expr: |
+          sum(rate(tool_calls_total{status="failed"}[10m]))
+          /
+          clamp_min(sum(rate(tool_calls_total[10m])), 0.001)
+          > 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Falhas de ferramentas acima de 10%"

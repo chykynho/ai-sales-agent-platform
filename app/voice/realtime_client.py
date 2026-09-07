@@ -11,6 +11,8 @@ from typing import Any
 import websocket
 
 from app.core.config import settings
+from app.observability.metrics import VOICE_REALTIME_DURATION, enabled as metrics_enabled
+from app.observability.tracing import tracer
 
 
 class RealtimeVoiceError(RuntimeError):
@@ -101,7 +103,15 @@ class OpenAIRealtimeClient:
                 return session.get("id"), count
 
     async def text_probe(self, *, message: str, safety_identifier: str) -> RealtimeTextResult:
-        return await asyncio.to_thread(self._text_probe_sync, message, safety_identifier)
+        with tracer("app.voice").start_as_current_span("voice.realtime.text") as span:
+            span.set_attribute("gen_ai.request.model", settings.openai_realtime_model)
+            result = await asyncio.to_thread(self._text_probe_sync, message, safety_identifier)
+            span.set_attribute("gen_ai.response.id", result.response_id or "")
+            if metrics_enabled():
+                VOICE_REALTIME_DURATION.labels(settings.openai_realtime_model, "text").observe(
+                    max(0.0, result.latency_ms / 1000)
+                )
+            return result
 
     def _text_probe_sync(self, message: str, safety_identifier: str) -> RealtimeTextResult:
         started = time.perf_counter()
@@ -155,7 +165,16 @@ class OpenAIRealtimeClient:
             except Exception: pass
 
     async def render_text_audio(self, *, text: str, safety_identifier: str) -> RealtimeAudioResult:
-        return await asyncio.to_thread(self._render_text_audio_sync, text, safety_identifier)
+        with tracer("app.voice").start_as_current_span("voice.realtime.audio") as span:
+            span.set_attribute("gen_ai.request.model", settings.openai_realtime_model)
+            result = await asyncio.to_thread(self._render_text_audio_sync, text, safety_identifier)
+            span.set_attribute("gen_ai.response.id", result.response_id or "")
+            span.set_attribute("audio.output.bytes", result.audio_bytes)
+            if metrics_enabled():
+                VOICE_REALTIME_DURATION.labels(settings.openai_realtime_model, "audio").observe(
+                    max(0.0, result.latency_ms / 1000)
+                )
+            return result
 
     def _render_text_audio_sync(self, text: str, safety_identifier: str) -> RealtimeAudioResult:
         started = time.perf_counter()

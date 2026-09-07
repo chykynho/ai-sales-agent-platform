@@ -15,6 +15,8 @@ from app.db.session import get_db
 from app.models.channel import ChannelAccount, ChannelEvent
 from app.models.user import User, UserRole
 from app.models.voice import VoiceEvent, VoiceSession
+from app.observability.context import bind_context
+from app.observability.metrics import TWILIO_CALL_ERRORS, enabled as metrics_enabled
 from app.schemas.channel import ChannelAccountRead, ChannelEventRead
 from app.schemas.voice import (
     MockVoiceTurnRequest,
@@ -177,6 +179,7 @@ async def _production_account(db: AsyncSession, provider_account_id: str) -> Cha
         raise HTTPException(status_code=404, detail="Voice/Twilio account not found")
     if account.outbound_mode != "twilio_media_stream":
         raise HTTPException(status_code=409, detail="Voice account is not configured for twilio_media_stream")
+    bind_context(tenant_id=str(account.tenant_id))
     return account
 
 
@@ -194,6 +197,8 @@ async def twilio_incoming_call(
     form = _form_dict(await request.form())
     try:
         if not validate_http_signature(request=request, account=account, form=form):
+            if metrics_enabled():
+                TWILIO_CALL_ERRORS.labels("invalid-signature-http").inc()
             raise HTTPException(status_code=403, detail="Invalid X-Twilio-Signature")
         TwilioVoiceService.ensure_account_sid(account, form.get("AccountSid", ""))
     except TwilioSecurityError as exc:
@@ -202,6 +207,8 @@ async def twilio_incoming_call(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     call_sid = str(form.get("CallSid") or "")
+    if call_sid:
+        bind_context(call_sid=call_sid)
     from_address = str(form.get("From") or form.get("Caller") or "")
     to_address = str(form.get("To") or form.get("Called") or account.display_phone_number or "")
     if not call_sid or not from_address:
@@ -254,6 +261,8 @@ async def twilio_call_status(
     form = _form_dict(await request.form())
     try:
         if not validate_http_signature(request=request, account=account, form=form):
+            if metrics_enabled():
+                TWILIO_CALL_ERRORS.labels("invalid-signature-http").inc()
             raise HTTPException(status_code=403, detail="Invalid X-Twilio-Signature")
         TwilioVoiceService.ensure_account_sid(account, form.get("AccountSid", ""))
     except TwilioSecurityError as exc:
@@ -261,6 +270,8 @@ async def twilio_call_status(
     except ValueError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     call_sid = str(form.get("CallSid") or "")
+    if call_sid:
+        bind_context(call_sid=call_sid)
     call_status = str(form.get("CallStatus") or "unknown")
     if not call_sid:
         raise HTTPException(status_code=422, detail="CallSid is required")
@@ -293,6 +304,8 @@ async def twilio_stream_status(
     form = _form_dict(await request.form())
     try:
         if not validate_http_signature(request=request, account=account, form=form):
+            if metrics_enabled():
+                TWILIO_CALL_ERRORS.labels("invalid-signature-http").inc()
             raise HTTPException(status_code=403, detail="Invalid X-Twilio-Signature")
         TwilioVoiceService.ensure_account_sid(account, form.get("AccountSid", ""))
     except TwilioSecurityError as exc:
@@ -300,6 +313,8 @@ async def twilio_stream_status(
     except ValueError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     call_sid = str(form.get("CallSid") or "")
+    if call_sid:
+        bind_context(call_sid=call_sid)
     stream_sid = str(form.get("StreamSid") or "")
     stream_event = str(form.get("StreamEvent") or "unknown")
     if not call_sid or not stream_sid:

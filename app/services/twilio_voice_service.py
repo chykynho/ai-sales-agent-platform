@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.channel import ChannelAccount, ChannelEvent
 from app.models.voice import VoiceSession
+from app.observability.metrics import TWILIO_CALLS, TWILIO_CALL_ERRORS, TWILIO_STREAM_EVENTS, enabled as metrics_enabled
 
 
 class TwilioVoiceService:
@@ -71,6 +72,16 @@ class TwilioVoiceService:
         db.add(event)
         await db.commit()
         await db.refresh(event)
+        if metrics_enabled():
+            normalized_status = str(status or "unknown")[:50]
+            if event_type in {"incoming_call", "call_status"}:
+                TWILIO_CALLS.labels(normalized_status).inc()
+                if normalized_status in {"busy", "failed", "no-answer", "canceled"}:
+                    TWILIO_CALL_ERRORS.labels(normalized_status).inc()
+            elif event_type == "stream_status":
+                TWILIO_STREAM_EVENTS.labels(normalized_status).inc()
+                if normalized_status == "stream-error":
+                    TWILIO_CALL_ERRORS.labels("stream-error").inc()
         return event, False
 
     async def annotate_voice_session(

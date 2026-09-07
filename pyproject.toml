@@ -1,8 +1,8 @@
 [project]
 name = "ai-sales-agent-platform"
-version = "0.11.0"
-description = "Production-oriented multi-tenant AI Sales Agent Platform - v0.11.0 Production Telephony Hardening"
-requires-python = ">=3.12,<3.14"
+version = "0.12.0"
+description = "Production-oriented multi-tenant AI Sales Agent Platform - v0.12 Observability and SRE"
+requires-python = ">=3.12,<3.13"
 dependencies = [
   "fastapi>=0.115,<1.0",
   "uvicorn[standard]>=0.34,<1.0",
@@ -27,6 +27,13 @@ dependencies = [
   "pgvector==0.5.0",
   "pypdf>=6,<7",
   "python-docx>=1.2,<2",
+  "prometheus-client==0.26.0",
+  "opentelemetry-api==1.44.0",
+  "opentelemetry-sdk==1.44.0",
+  "opentelemetry-exporter-otlp-proto-http==1.44.0",
+  "opentelemetry-instrumentation-httpx==0.65b0",
+  "opentelemetry-instrumentation-redis==0.65b0",
+  "opentelemetry-instrumentation-sqlalchemy==0.65b0",
 ]
 
 [project.optional-dependencies]
