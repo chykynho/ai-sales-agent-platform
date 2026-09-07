@@ -1,7 +1,7 @@
 [project]
 name = "ai-sales-agent-platform"
-version = "0.10.0"
-description = "Production-oriented multi-tenant AI Sales Agent Platform - v0.10.0 Twilio Media Streams bridge lab"
+version = "0.11.0"
+description = "Production-oriented multi-tenant AI Sales Agent Platform - v0.11.0 Production Telephony Hardening"
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "fastapi>=0.115,<1.0",
@@ -19,6 +19,7 @@ dependencies = [
   "openai==3.6.0",
   "httpx>=0.28,<1",
   "websocket-client>=1.8,<2",
+  "twilio==9.11.0",
   "langgraph==1.2.11",
   "langgraph-checkpoint-postgres==3.1.2",
   "psycopg[binary]>=3.2,<4",

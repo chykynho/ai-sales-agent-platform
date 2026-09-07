@@ -73,6 +73,7 @@ class VoiceService:
         provider_call_id: str,
         from_address: str,
         transcript: str,
+        event_source: str = "twilio_media_stream_lab",
     ) -> VoiceTurnResult:
         return await self._process_turn(
             db=db,
@@ -80,7 +81,7 @@ class VoiceService:
             account=account,
             provider="twilio",
             transport="twilio_media_stream",
-            event_source="twilio_media_stream_lab",
+            event_source=event_source,
             provider_call_id=provider_call_id,
             from_address=from_address,
             transcript=transcript,

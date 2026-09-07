@@ -89,11 +89,34 @@ def build_clear_message(*, stream_sid: str) -> dict:
     return {"event": "clear", "streamSid": stream_sid}
 
 
-def build_bidirectional_twiml(*, stream_url: str) -> str:
+def build_bidirectional_twiml(
+    *,
+    stream_url: str,
+    custom_parameters: dict[str, str] | None = None,
+    status_callback_url: str | None = None,
+    stream_name: str | None = None,
+) -> str:
     if not stream_url.startswith("wss://"):
         raise TwilioProtocolError("Twilio bidirectional Media Streams require a wss:// URL")
-    safe = escape(stream_url, quote=True)
+    if status_callback_url and not status_callback_url.startswith("https://"):
+        raise TwilioProtocolError("Twilio production statusCallback requires an https:// URL")
+    attrs = [f'url="{escape(stream_url, quote=True)}"']
+    if stream_name:
+        attrs.append(f'name="{escape(stream_name, quote=True)}"')
+    if status_callback_url:
+        attrs.append(f'statusCallback="{escape(status_callback_url, quote=True)}"')
+        attrs.append('statusCallbackMethod="POST"')
+    params = ""
+    for name, value in (custom_parameters or {}).items():
+        clean_name = str(name).strip()
+        if not clean_name:
+            raise TwilioProtocolError("Twilio custom parameter name cannot be empty")
+        params += (
+            '<Parameter name="' + escape(clean_name, quote=True) + '" value="'
+            + escape(str(value), quote=True) + '" />'
+        )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
-        '<Response><Connect><Stream url="' + safe + '" /></Connect></Response>'
+        '<Response><Connect><Stream ' + " ".join(attrs) + '>'
+        + params + '</Stream></Connect></Response>'
     )

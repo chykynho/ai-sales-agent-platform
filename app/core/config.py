@@ -59,6 +59,18 @@ class Settings(BaseSettings):
     voice_barge_in_enabled: bool = True
     voice_bridge_playback_speed: float = 4.0
 
+    # v0.11 Production Telephony Hardening
+    voice_production_enabled: bool = False
+    twilio_require_signature: bool = True
+    twilio_public_base_url: str | None = None
+    twilio_wss_base_url: str | None = None
+    openai_transcribe_model: str = "gpt-transcribe"
+    voice_vad_rms_threshold: int = 450
+    voice_vad_silence_ms: int = 700
+    voice_vad_min_speech_ms: int = 240
+    voice_vad_max_utterance_ms: int = 15000
+    voice_production_first_turn_only: bool = True
+
     bootstrap_tenant_name: str = "Demo Tenant"
     bootstrap_tenant_slug: str = "demo"
     bootstrap_admin_email: str = "admin@example.com"
