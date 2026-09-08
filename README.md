@@ -1,10 +1,10 @@
-# AI Sales Agent Platform v0.13.0
+# AI Sales Agent Platform v0.14.0
 
 Plataforma SaaS multi-tenant de agentes comerciais de IA, construída como projeto de portfólio orientado a produção.
 
-> **v0.13:** adiciona resiliência e performance com rate limiting distribuído em Redis, circuit breaker compartilhado, bulkhead para OpenAI, política de retry sem amplification e load testing seguro com p50/p95/p99, throughput e error rate.
+> **v0.14:** adiciona CI/CD, quality gates e supply-chain security com GitHub Actions, Ruff, Bandit, pip-audit, Gitleaks, Trivy, CycloneDX SBOM, Dependabot e imagem Docker production non-root.
 
-A v0.12.0 permanece como baseline funcional imediatamente anterior: Observabilidade/SRE com Prometheus, Grafana, Tempo, OpenTelemetry, logs JSON, Golden Signals e 35 testes, sobre a telefonia hardened da v0.11.1.
+A v0.13.0 permanece como baseline funcional imediatamente anterior: resiliência, performance e load testing sobre a observabilidade/SRE da v0.12.
 
 ## Capacidades atuais
 
@@ -27,8 +27,29 @@ A v0.12.0 permanece como baseline funcional imediatamente anterior: Observabilid
 - rate limiting distribuído em Redis;
 - circuit breaker Redis com half-open probe;
 - bulkhead para concorrência OpenAI;
-- harness de carga seguro e reproduzível.
+- harness de carga seguro e reproduzível;
+- GitHub Actions CI/CD com quality/security/integration gates;
+- secret scanning Gitleaks e image scanning Trivy;
+- dependency audit com pip-audit e Bandit;
+- CycloneDX SBOM e BuildKit provenance;
+- Dependabot/CODEOWNERS/SECURITY policy;
+- imagem Docker production non-root.
 
+
+## v0.14 — CI/CD, Quality Gates e Supply Chain Security
+
+A v0.14 adiciona quatro gates no GitHub Actions: qualidade, segredos, segurança da imagem e integração Docker. Tags `v*` disparam delivery para GHCR após scan Trivy, com provenance e SBOM.
+
+O Dockerfile passa a separar `development` e `production`; a imagem de produção roda como `USER app`, sem ferramentas de desenvolvimento/segurança, e `.dockerignore` impede que `.env` e `.git` entrem no contexto.
+
+Validação local:
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\scripts\upgrade_v14.ps1
+PowerShell -ExecutionPolicy Bypass -File .\scripts\test_v14.ps1
+```
+
+Gates: Ruff, Bandit, 50 testes, coverage >= 25%, pip-audit, CycloneDX SBOM, Gitleaks e Trivy.
 
 ## v0.13 — Resiliência, Performance e Load Testing
 
@@ -161,6 +182,9 @@ O dashboard `AI Sales Agent Platform - SRE / Golden Signals` é provisionado aut
 
 ## Documentação
 
+- `V0.14.md` — CI/CD, gates e supply chain;
+- `UPGRADE_v0.14.0.md` — aplicação da v0.14;
+- `VALIDACAO_v0.14_PTBR.md` — critérios e ruleset recomendado;
 - `V0.13.md` — resiliência, performance e load testing;
 - `UPGRADE_v0.13.0.md` — aplicação da v0.13;
 - `VALIDACAO_v0.13_PTBR.md` — critérios da v0.13;

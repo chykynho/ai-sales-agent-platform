@@ -1,44 +1,14 @@
-﻿# === Segredos / ambiente local ===
 .env
-.env.*
-!.env.example
-
-# === Python ===
+.venv/
 __pycache__/
 *.py[cod]
-*.pyo
 .pytest_cache/
-.mypy_cache/
 .ruff_cache/
-.venv/
-venv/
-
-# === IDE ===
-.vscode/
-.idea/
-
-# === Sistema operacional ===
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# === Logs / temporários ===
-*.log
-*.tmp
-*.temp
-
-# === Cobertura / build ===
 .coverage
 htmlcov/
-dist/
-build/
-*.egg-info/
-
-# === Dados locais ===
-*.db
-*.sqlite
-*.sqlite3
-
-# === Backups / artefatos locais ===
-*.bak
-*.old
+.idea/
+.vscode/
+*.log
+.DS_Store
+coverage.xml
+artifacts/

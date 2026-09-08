@@ -1,7 +1,7 @@
 [project]
 name = "ai-sales-agent-platform"
-version = "0.13.0"
-description = "Production-oriented multi-tenant AI Sales Agent Platform - v0.13 Resilience, Performance and Load Testing"
+version = "0.14.0"
+description = "Production-oriented multi-tenant AI Sales Agent Platform - v0.14 CI/CD, Quality Gates and Supply Chain Security"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "fastapi>=0.115,<1.0",
@@ -40,7 +40,13 @@ dependencies = [
 dev = [
   "pytest>=8.3,<10",
   "pytest-asyncio>=0.25,<2",
-  "ruff>=0.9,<1",
+  "pytest-cov==7.1.0",
+  "ruff==0.16.6",
+]
+security = [
+  "bandit==1.9.4",
+  "pip-audit==2.10.1",
+  "cyclonedx-bom==7.3.1",
 ]
 
 [tool.pytest.ini_options]
@@ -50,3 +56,17 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
+# Gate inicial propositalmente focado em erros reais/undefined names;
+# o conjunto pode ser ampliado gradualmente sem criar uma reforma cosmética gigante.
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 25
+show_missing = true
+skip_covered = false

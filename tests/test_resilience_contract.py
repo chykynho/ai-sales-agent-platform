@@ -50,7 +50,8 @@ class FakeCircuitRedis:
 
 
 def test_v013_settings_contract():
-    assert settings.app_version == "0.13.0"
+    major, minor, patch = (int(part) for part in settings.app_version.split("."))
+    assert (major, minor, patch) >= (0, 13, 0)
     assert settings.resilience_enabled is True
     assert settings.resilience_rate_limit_enabled is True
     assert settings.resilience_circuit_breaker_enabled is True
