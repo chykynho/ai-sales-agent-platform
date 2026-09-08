@@ -17,7 +17,7 @@ def main() -> int:
         ready.raise_for_status()
         payload = ready.json()
         assert payload["status"] == "ok"
-        assert payload["version"] == "0.14.2"
+        assert payload["version"] == "0.14.3"
         print(json.dumps(payload, indent=2, ensure_ascii=False))
 
     print("\n[2/5] Docker supply-chain hardening...")
@@ -26,8 +26,6 @@ def main() -> int:
     assert "build\n" in dockerignore and "*.egg-info\n" in dockerignore
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "build/" in gitignore and "*.egg-info/" in gitignore
-    assert not (ROOT / "build").exists()
-    assert not list(ROOT.glob("*.egg-info"))
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "AS production" in dockerfile and "USER app" in dockerfile
     print("[OK] .env/.git fora do contexto e production non-root")
@@ -36,6 +34,9 @@ def main() -> int:
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
     assert "pip-audit . --strict" in ci
+    assert "Repository hygiene - artefatos nao rastreados" in ci
+    assert "git ls-files" in ci
+    assert "rm -rf build dist *.egg-info" in ci
     assert "gitleaks/gitleaks-action@v3" in ci
     assert "aquasecurity/trivy-action@v0.36.0" in ci
     assert "ghcr.io/${{ github.repository }}" in release

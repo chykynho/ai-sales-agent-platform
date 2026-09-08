@@ -1,10 +1,26 @@
 $ErrorActionPreference = "Stop"
-Write-Host "=== AI Sales Agent Platform v0.14.2 - Full Quality/Supply Chain Gate ===" -ForegroundColor Cyan
+function Assert-RepositoryHygiene {
+    $tracked = @(git ls-files)
+    if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel executar git ls-files no host" }
+    $forbidden = @($tracked | Where-Object {
+        $_ -match '^(build/|dist/)' -or
+        $_ -match '\.egg-info/' -or
+        $_ -match '\.whl$'
+    })
+    if ($forbidden.Count -gt 0) {
+        Write-Host "Artefatos de build rastreados pelo Git:" -ForegroundColor Red
+        $forbidden | ForEach-Object { Write-Host " - $_" -ForegroundColor Red }
+        throw "Repository hygiene falhou: artefatos de build rastreados"
+    }
+}
 
-$artifactDir = Join-Path (Get-Location) "artifacts\v0.14.2"
+Write-Host "=== AI Sales Agent Platform v0.14.3 - Full Quality/Supply Chain Gate ===" -ForegroundColor Cyan
+
+$artifactDir = Join-Path (Get-Location) "artifacts\v0.14.3"
 New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
 
-Write-Host "`n[1/7] Ruff..." -ForegroundColor Yellow
+Write-Host "`n[1/7] Repository hygiene no host + Ruff..." -ForegroundColor Yellow
+Assert-RepositoryHygiene
 docker compose exec -T api ruff check app tests scripts
 if ($LASTEXITCODE -ne 0) { throw "Ruff falhou" }
 
@@ -34,16 +50,16 @@ docker run --rm -v "$repoMount" ghcr.io/gitleaks/gitleaks:v8.30.1 git --redact -
 if ($LASTEXITCODE -ne 0) { throw "Gitleaks encontrou possivel segredo versionado" }
 
 Write-Host "`n[7/7] Trivy - imagem production; CRITICAL corrigivel bloqueia..." -ForegroundColor Yellow
-docker build --target production -t ai-sales-agent-platform:v0.14.2 .
+docker build --target production -t ai-sales-agent-platform:v0.14.3 .
 if ($LASTEXITCODE -ne 0) { throw "Build production falhou" }
-$imageTar = Join-Path $artifactDir "ai-sales-agent-platform-v0.14.2.tar"
-docker save ai-sales-agent-platform:v0.14.2 -o "$imageTar"
+$imageTar = Join-Path $artifactDir "ai-sales-agent-platform-v0.14.3.tar"
+docker save ai-sales-agent-platform:v0.14.3 -o "$imageTar"
 if ($LASTEXITCODE -ne 0) { throw "docker save falhou" }
 $artMount = "$($artifactDir):/artifacts"
-docker run --rm -v "$artMount" aquasec/trivy:0.73.0 image --input /artifacts/ai-sales-agent-platform-v0.14.2.tar --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress
+docker run --rm -v "$artMount" aquasec/trivy:0.73.0 image --input /artifacts/ai-sales-agent-platform-v0.14.3.tar --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress
 if ($LASTEXITCODE -ne 0) { throw "Trivy encontrou vulnerabilidade CRITICAL corrigivel" }
 
-Write-Host "`n=== v0.14.2 QUALITY/SUPPLY CHAIN VALIDADA COM SUCESSO ===" -ForegroundColor Green
+Write-Host "`n=== v0.14.3 QUALITY/SUPPLY CHAIN VALIDADA COM SUCESSO ===" -ForegroundColor Green
 Write-Host "Artifacts: $artifactDir" -ForegroundColor Cyan
 Write-Host "- coverage.xml" -ForegroundColor Cyan
 Write-Host "- sbom-python.cdx.json" -ForegroundColor Cyan

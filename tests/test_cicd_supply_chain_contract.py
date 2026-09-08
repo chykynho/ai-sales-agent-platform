@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_v014_version_contract():
-    assert settings.app_version == "0.14.2"
+    assert settings.app_version == "0.14.3"
 
 
 def test_ci_workflow_has_required_quality_and_security_gates():
@@ -27,6 +27,7 @@ def test_ci_workflow_has_required_quality_and_security_gates():
     ):
         assert required in text
     assert "permissions:\n  contents: read" in text
+    assert '"hotfix/**"' in text
 
 
 def test_release_workflow_publishes_hardened_ghcr_image():
@@ -103,15 +104,21 @@ def test_v014_operational_scripts_and_docs_exist():
         assert (ROOT / path).exists(), path
 
 
-def test_build_artifacts_are_ignored_absent_and_wheel_build_is_isolated():
+def test_build_artifacts_are_ignored_untracked_and_wheel_build_is_isolated():
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
     for token in ("build/", "dist/", "*.egg-info/", "*.whl"):
         assert token in gitignore
     for token in ("build", "dist", "*.egg-info", "*.whl"):
         assert token in dockerignore
-    assert not (ROOT / "build").exists()
-    assert not list(ROOT.glob("*.egg-info"))
+
+    # A imagem/container de desenvolvimento não carrega o binário Git nem o diretório .git.
+    # A verificação de arquivos rastreados pertence ao host/GitHub Runner, não ao pytest.
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "git ls-files" in workflow
+    assert "Repository hygiene - artefatos nao rastreados" in workflow
+    assert "rm -rf build dist *.egg-info" in workflow
+
     upgrade = (ROOT / "scripts/upgrade_v14.ps1").read_text(encoding="utf-8")
-    assert "/tmp/v0142-src" in upgrade
-    assert "cd /tmp/v0142-src" in upgrade
+    assert "/tmp/v0143-src" in upgrade
+    assert "cd /tmp/v0143-src" in upgrade
