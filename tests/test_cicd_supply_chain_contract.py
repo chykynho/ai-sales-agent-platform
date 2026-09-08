@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_v014_version_contract():
-    assert settings.app_version == "0.14.1"
+    assert settings.app_version == "0.14.2"
 
 
 def test_ci_workflow_has_required_quality_and_security_gates():
@@ -101,3 +101,17 @@ def test_v014_operational_scripts_and_docs_exist():
         "VALIDACAO_v0.14.1_PTBR.md",
     ):
         assert (ROOT / path).exists(), path
+
+
+def test_build_artifacts_are_ignored_absent_and_wheel_build_is_isolated():
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
+    for token in ("build/", "dist/", "*.egg-info/", "*.whl"):
+        assert token in gitignore
+    for token in ("build", "dist", "*.egg-info", "*.whl"):
+        assert token in dockerignore
+    assert not (ROOT / "build").exists()
+    assert not list(ROOT.glob("*.egg-info"))
+    upgrade = (ROOT / "scripts/upgrade_v14.ps1").read_text(encoding="utf-8")
+    assert "/tmp/v0142-src" in upgrade
+    assert "cd /tmp/v0142-src" in upgrade

@@ -18,3 +18,7 @@ artifacts
 .DS_Store
 .vscode
 .idea
+build
+dist
+*.egg-info
+*.whl

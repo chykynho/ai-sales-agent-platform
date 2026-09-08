@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     api_v1_prefix: str = "/api/v1"
-    app_version: str = "0.14.1"
+    app_version: str = "0.14.2"
 
     secret_key: str = "CHANGE_ME_WITH_A_LONG_RANDOM_SECRET"
     access_token_expire_minutes: int = 60

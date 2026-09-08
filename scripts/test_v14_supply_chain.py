@@ -17,12 +17,17 @@ def main() -> int:
         ready.raise_for_status()
         payload = ready.json()
         assert payload["status"] == "ok"
-        assert payload["version"] == "0.14.1"
+        assert payload["version"] == "0.14.2"
         print(json.dumps(payload, indent=2, ensure_ascii=False))
 
     print("\n[2/5] Docker supply-chain hardening...")
     dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
     assert ".env\n" in dockerignore and ".git\n" in dockerignore
+    assert "build\n" in dockerignore and "*.egg-info\n" in dockerignore
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "build/" in gitignore and "*.egg-info/" in gitignore
+    assert not (ROOT / "build").exists()
+    assert not list(ROOT.glob("*.egg-info"))
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "AS production" in dockerfile and "USER app" in dockerfile
     print("[OK] .env/.git fora do contexto e production non-root")
@@ -51,7 +56,7 @@ def main() -> int:
     dev_block = pyproject.split('[project.optional-dependencies]', 1)[1].split('[tool.setuptools.packages.find]', 1)[0]
     assert 'setuptools>=' in dev_block and 'wheel>=' in dev_block
     assert '[tool.setuptools.packages.find]' in pyproject and 'include = ["app*"]' in pyproject
-    print("[OK] ferramentas de quality/security pinadas + build backend/package discovery explicitos")
+    print("[OK] ferramentas de quality/security pinadas + build backend/package discovery explicitos + repo hygiene")
 
     print("\n=== v0.14 SUPPLY CHAIN CONTRACT VALIDADO ===")
     return 0

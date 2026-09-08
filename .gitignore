@@ -12,3 +12,7 @@ htmlcov/
 .DS_Store
 coverage.xml
 artifacts/
+build/
+dist/
+*.egg-info/
+*.whl
