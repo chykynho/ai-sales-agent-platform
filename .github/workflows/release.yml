@@ -20,7 +20,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Build local para security gate
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: production
@@ -54,7 +54,7 @@ jobs:
             type=raw,value=latest
 
       - name: Publicar imagem com provenance e SBOM
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: production
