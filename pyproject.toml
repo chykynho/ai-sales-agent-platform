@@ -20,7 +20,7 @@ dependencies = [
   "pwdlib[argon2]>=0.2,<1",
   "python-multipart>=0.0.20,<1",
   "email-validator>=2.2,<3",
-  "openai==3.6.0",
+  "openai==3.8.0",
   "httpx>=0.28,<1",
   "websocket-client>=1.8,<2",
   "twilio==9.11.0",
