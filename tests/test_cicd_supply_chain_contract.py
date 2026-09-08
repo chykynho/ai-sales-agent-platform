@@ -1,14 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tomllib
 
-from app.core.config import settings
+from app.core.config import _default_app_version, settings
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_v014_version_contract():
-    assert settings.app_version == "0.14.3"
+def test_v015_version_contract():
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    project_version = pyproject["project"]["version"]
+    assert project_version == "0.15.0"
+    assert _default_app_version() == project_version
+    assert settings.app_version == project_version
+    config = (ROOT / "app/core/config.py").read_text(encoding="utf-8")
+    assert 'app_version: str = "0.15.0"' not in config
 
 
 def test_ci_workflow_has_required_quality_and_security_gates():
@@ -18,16 +25,20 @@ def test_ci_workflow_has_required_quality_and_security_gates():
         "Secret Scan",
         "Container Security Gate",
         "Docker Integration Gate",
+        "Multi-Architecture Gate",
         "ruff check",
         "bandit -q -r app -ll",
         "pip-audit . --strict",
         "gitleaks/gitleaks-action@v3",
         "aquasecurity/trivy-action@v0.36.0",
         "--cov-fail-under=25",
+        "docker/setup-qemu-action@v4",
+        "platforms: linux/amd64,linux/arm64",
     ):
         assert required in text
     assert "permissions:\n  contents: read" in text
     assert '"hotfix/**"' in text
+    assert "docker compose down --remove-orphans" not in text
 
 
 def test_release_workflow_publishes_hardened_ghcr_image():
@@ -39,6 +50,12 @@ def test_release_workflow_publishes_hardened_ghcr_image():
     assert "provenance: mode=max" in text
     assert "sbom: true" in text
     assert "severity: CRITICAL" in text
+    assert "docker/setup-qemu-action@v4" in text
+    assert "platforms: linux/amd64,linux/arm64" in text
+    assert "docker/build-push-action@v7" in text
+    assert "docker/login-action@v4" in text
+    assert "docker/metadata-action@v6" in text
+    assert "Verificar manifest multi-platform publicado" in text
 
 
 def test_supply_chain_tool_versions_are_pinned():
@@ -63,7 +80,14 @@ def test_docker_context_excludes_secrets_and_production_is_non_root():
     assert "AS production" in dockerfile
     assert "AS development" in dockerfile
     assert "USER app" in dockerfile
-    assert 'target: development' in (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    assert 'target: development' in compose
+    assert 'RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}' in compose
+    assert 'RUN_BOOTSTRAP: ${RUN_BOOTSTRAP:-true}' in compose
+
+    entrypoint = (ROOT / "scripts/entrypoint.sh").read_text(encoding="utf-8")
+    assert '${RUN_MIGRATIONS:-false}' in entrypoint
+    assert '${RUN_BOOTSTRAP:-false}' in entrypoint
 
 
 def test_repository_governance_files_exist():
@@ -89,7 +113,7 @@ def test_setuptools_discovers_only_application_package():
         assert excluded in pyproject
 
 
-def test_v014_operational_scripts_and_docs_exist():
+def test_operational_scripts_and_docs_exist():
     for path in (
         "scripts/upgrade_v14.ps1",
         "scripts/test_v14.ps1",
@@ -100,6 +124,11 @@ def test_v014_operational_scripts_and_docs_exist():
         "HOTFIX_v0.14.1_CI_PACKAGE_DISCOVERY_PTBR.md",
         "UPGRADE_v0.14.1.md",
         "VALIDACAO_v0.14.1_PTBR.md",
+        "scripts/upgrade_v15.ps1",
+        "scripts/test_v15.ps1",
+        "UPGRADE_v0.15.0.md",
+        "V0.15.md",
+        "VALIDACAO_v0.15_PTBR.md",
     ):
         assert (ROOT / path).exists(), path
 

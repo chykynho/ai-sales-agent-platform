@@ -34,6 +34,9 @@ services:
       target: development
     env_file:
       - .env
+    environment:
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      RUN_BOOTSTRAP: ${RUN_BOOTSTRAP:-true}
     ports:
       - "8000:8000"
     depends_on:

@@ -106,7 +106,7 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Build imagem production
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: production
@@ -146,6 +146,31 @@ jobs:
           path: trivy-image.sarif
           retention-days: 14
 
+
+  multiarch-gate:
+    name: Multi-Architecture Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build production amd64 + arm64
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: false
+          outputs: type=cacheonly
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   integration-gate:
     name: Docker Integration Gate
     runs-on: ubuntu-latest
@@ -183,4 +208,4 @@ jobs:
 
       - name: Cleanup sem remover volumes do projeto do usuario
         if: always()
-        run: docker compose down --remove-orphans
+        run: docker compose down
