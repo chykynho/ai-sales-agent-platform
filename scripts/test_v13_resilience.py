@@ -43,7 +43,7 @@ async def functional_resilience_checks() -> dict:
     assert [d.allowed for d in decisions] == [True, True, True, False]
 
     # Circuit breaker real em Redis, mas dependência isolada de smoke.
-    dependency = f"smoke-v13-{suffix}"
+    dependency = f"smoke-resilience-{suffix}"
     breaker = RedisCircuitBreaker(redis_client)
     config = CircuitBreakerConfig(
         failure_threshold=2,
@@ -123,14 +123,15 @@ async def functional_resilience_checks() -> dict:
 
 
 def main() -> int:
-    print("=== AI Sales Agent Platform v0.13 - Resilience/Performance Smoke Test ===")
+    expected_version = settings.app_version
+    print(f"=== AI Sales Agent Platform {expected_version} - Resilience/Performance Smoke Test ===")
     with httpx.Client(timeout=15.0) as client:
-        print("\n[1/6] Liveness/readiness v0.13...")
+        print(f"\n[1/6] Liveness/readiness {expected_version}...")
         live = client.get(API + "/health/live")
         live.raise_for_status()
         ready = client.get(API + "/health/ready")
         ready.raise_for_status()
-        assert live.json()["version"] == "0.13.0"
+        assert live.json()["version"] == expected_version
         assert ready.json()["status"] == "ok"
         print(json.dumps(ready.json(), ensure_ascii=False, indent=2))
 
@@ -178,10 +179,10 @@ def main() -> int:
             assert forbidden not in metrics.text
         root = client.get(BASE + "/")
         root.raise_for_status()
-        assert root.json()["version"] == "0.13.0"
-        print("[OK] / reporta v0.13.0 e /metrics nao expoe segredos conhecidos")
+        assert root.json()["version"] == expected_version
+        print(f"[OK] / reporta {expected_version} e /metrics nao expoe segredos conhecidos")
 
-    print("\n=== v0.13 RESILIENCIA VALIDADA COM SUCESSO ===")
+    print(f"\n=== {expected_version} RESILIENCIA VALIDADA COM SUCESSO ===")
     print("Next: python -m scripts.load_test_v13 --requests 200 --concurrency 20 --enforce-thresholds")
     return 0
 
@@ -190,5 +191,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception as exc:
-        print(f"v0.13 resilience smoke test failed: {type(exc).__name__}({exc})", file=sys.stderr)
+        print(f"resilience smoke test failed: {type(exc).__name__}({exc})", file=sys.stderr)
         raise

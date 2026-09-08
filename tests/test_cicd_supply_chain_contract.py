@@ -122,3 +122,10 @@ def test_build_artifacts_are_ignored_untracked_and_wheel_build_is_isolated():
     upgrade = (ROOT / "scripts/upgrade_v14.ps1").read_text(encoding="utf-8")
     assert "/tmp/v0143-src" in upgrade
     assert "cd /tmp/v0143-src" in upgrade
+
+    # O smoke de resiliencia e legado de v0.13, mas deve validar a versao runtime atual.
+    smoke = (ROOT / "scripts/test_v13_resilience.py").read_text(encoding="utf-8")
+    assert "expected_version = settings.app_version" in smoke
+    assert 'live.json()["version"] == expected_version' in smoke
+    assert 'root.json()["version"] == expected_version' in smoke
+    assert '== "0.13.0"' not in smoke
