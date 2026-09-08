@@ -1,4 +1,4 @@
-# AI Sales Agent Platform v0.14.0
+# AI Sales Agent Platform v0.14.1
 
 Plataforma SaaS multi-tenant de agentes comerciais de IA, construída como projeto de portfólio orientado a produção.
 
@@ -193,3 +193,8 @@ O dashboard `AI Sales Agent Platform - SRE / Golden Signals` é provisionado aut
 - `VALIDACAO_v0.12_PTBR.md` — critérios de teste;
 - `V0.11.md` — telefonia hardened;
 - `HOTFIX_v0.11.1_PTBR.md` — correção do smoke de áudio.
+
+
+## v0.14.1 — Hotfix CI package discovery
+
+Corrige o empacotamento no GitHub Actions com descoberta explícita `app*` no `setuptools`. A tag `v0.14.0` permanece imutável; `v0.14.1` deve ser publicada somente após o CI remoto ficar verde.

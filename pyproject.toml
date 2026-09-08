@@ -1,7 +1,11 @@
+[build-system]
+requires = ["setuptools>=80,<83", "wheel>=0.45,<1"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ai-sales-agent-platform"
-version = "0.14.0"
-description = "Production-oriented multi-tenant AI Sales Agent Platform - v0.14 CI/CD, Quality Gates and Supply Chain Security"
+version = "0.14.1"
+description = "Production-oriented multi-tenant AI Sales Agent Platform - v0.14.1 CI package-discovery hotfix"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "fastapi>=0.115,<1.0",
@@ -38,6 +42,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "setuptools>=80,<83",
+  "wheel>=0.45,<1",
   "pytest>=8.3,<10",
   "pytest-asyncio>=0.25,<2",
   "pytest-cov==7.1.0",
@@ -48,6 +54,12 @@ security = [
   "pip-audit==2.10.1",
   "cyclonedx-bom==7.3.1",
 ]
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["alembic*", "fixtures*", "observability*", "scripts*", "tests*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

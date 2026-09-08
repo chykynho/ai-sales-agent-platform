@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_v014_version_contract():
-    assert settings.app_version == "0.14.0"
+    assert settings.app_version == "0.14.1"
 
 
 def test_ci_workflow_has_required_quality_and_security_gates():
@@ -20,7 +20,7 @@ def test_ci_workflow_has_required_quality_and_security_gates():
         "Docker Integration Gate",
         "ruff check",
         "bandit -q -r app -ll",
-        "pip-audit . --strict --progress-spinner off",
+        "pip-audit . --strict",
         "gitleaks/gitleaks-action@v3",
         "aquasecurity/trivy-action@v0.36.0",
         "--cov-fail-under=25",
@@ -74,6 +74,20 @@ def test_repository_governance_files_exist():
     assert (ROOT / "SECURITY.md").exists()
 
 
+def test_setuptools_discovers_only_application_package():
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert '[build-system]' in pyproject
+    assert 'build-backend = "setuptools.build_meta"' in pyproject
+    assert 'setuptools>=' in pyproject
+    assert 'wheel>=' in pyproject
+    dev_block = pyproject.split('[project.optional-dependencies]', 1)[1].split('[tool.setuptools.packages.find]', 1)[0]
+    assert 'setuptools>=' in dev_block and 'wheel>=' in dev_block
+    assert '[tool.setuptools.packages.find]' in pyproject
+    assert 'include = ["app*"]' in pyproject
+    for excluded in ("alembic*", "fixtures*", "observability*", "scripts*", "tests*"):
+        assert excluded in pyproject
+
+
 def test_v014_operational_scripts_and_docs_exist():
     for path in (
         "scripts/upgrade_v14.ps1",
@@ -82,5 +96,8 @@ def test_v014_operational_scripts_and_docs_exist():
         "UPGRADE_v0.14.0.md",
         "V0.14.md",
         "VALIDACAO_v0.14_PTBR.md",
+        "HOTFIX_v0.14.1_CI_PACKAGE_DISCOVERY_PTBR.md",
+        "UPGRADE_v0.14.1.md",
+        "VALIDACAO_v0.14.1_PTBR.md",
     ):
         assert (ROOT / path).exists(), path

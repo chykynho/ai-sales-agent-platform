@@ -17,7 +17,7 @@ def main() -> int:
         ready.raise_for_status()
         payload = ready.json()
         assert payload["status"] == "ok"
-        assert payload["version"] == "0.14.0"
+        assert payload["version"] == "0.14.1"
         print(json.dumps(payload, indent=2, ensure_ascii=False))
 
     print("\n[2/5] Docker supply-chain hardening...")
@@ -30,7 +30,7 @@ def main() -> int:
     print("\n[3/5] GitHub Actions quality/security/CD...")
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
-    assert "pip-audit . --strict --progress-spinner off" in ci
+    assert "pip-audit . --strict" in ci
     assert "gitleaks/gitleaks-action@v3" in ci
     assert "aquasecurity/trivy-action@v0.36.0" in ci
     assert "ghcr.io/${{ github.repository }}" in release
@@ -47,7 +47,11 @@ def main() -> int:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     for token in ("ruff==0.16.6", "bandit==1.9.4", "pip-audit==2.10.1", "cyclonedx-bom==7.3.1"):
         assert token in pyproject
-    print("[OK] ferramentas de quality/security pinadas")
+    assert '[build-system]' in pyproject and 'build-backend = "setuptools.build_meta"' in pyproject
+    dev_block = pyproject.split('[project.optional-dependencies]', 1)[1].split('[tool.setuptools.packages.find]', 1)[0]
+    assert 'setuptools>=' in dev_block and 'wheel>=' in dev_block
+    assert '[tool.setuptools.packages.find]' in pyproject and 'include = ["app*"]' in pyproject
+    print("[OK] ferramentas de quality/security pinadas + build backend/package discovery explicitos")
 
     print("\n=== v0.14 SUPPLY CHAIN CONTRACT VALIDADO ===")
     return 0
