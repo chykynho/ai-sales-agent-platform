@@ -1,6 +1,26 @@
 from functools import lru_cache
+from importlib.metadata import PackageNotFoundError, version as package_version
+from pathlib import Path
+import tomllib
 from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_PACKAGE_NAME = "ai-sales-agent-platform"
+_UNKNOWN_VERSION = "0.0.0+unknown"
+
+
+def _default_app_version() -> str:
+    """Resolve a versao a partir do pacote instalado; no source tree, usa pyproject.toml."""
+    try:
+        return package_version(_PACKAGE_NAME)
+    except PackageNotFoundError:
+        pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+        try:
+            data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            return _UNKNOWN_VERSION
+        return str(data.get("project", {}).get("version") or _UNKNOWN_VERSION)
 
 
 class Settings(BaseSettings):
@@ -8,7 +28,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     api_v1_prefix: str = "/api/v1"
-    app_version: str = "0.14.3"
+    app_version: str = _default_app_version()
 
     secret_key: str = "CHANGE_ME_WITH_A_LONG_RANDOM_SECRET"
     access_token_expire_minutes: int = 60
