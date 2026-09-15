@@ -12,6 +12,12 @@ WORKDIR /app
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid app --create-home --shell /usr/sbin/nologin app
 
+# Security refresh: upgrade Debian perl-base to the latest patched
+# release available for the base distribution before installing Python deps.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends --only-upgrade perl-base && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir --upgrade pip
 COPY pyproject.toml /app/
 

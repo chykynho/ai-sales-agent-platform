@@ -6,10 +6,10 @@ import tomllib
 from app.core.config import _default_app_version, settings
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "0.15.3"
+EXPECTED_VERSION = "0.15.4"
 
 
-def test_v0153_version_contract():
+def test_v0154_version_contract():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     project_version = pyproject["project"]["version"]
     assert project_version == EXPECTED_VERSION
