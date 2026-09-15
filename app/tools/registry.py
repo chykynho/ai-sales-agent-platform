@@ -46,10 +46,10 @@ class ToolRegistry:
 def get_tool_registry() -> ToolRegistry:
     return ToolRegistry(
         [
-            ToolSpec(name="check_price", description="Consulta o preço atual de um produto pelo código no catálogo do tenant. Use antes de informar preço.", args_model=CheckPriceArgs, handler=check_price, write_action=False),
+            ToolSpec(name="check_price", description="Consulta o preço oficial atual de um produto pelo código no catálogo estruturado do tenant. Use sempre primeiro para preço. Se retornar found=false e fallback_recommended=true, chame search_knowledge com fallback_query antes de concluir que o preço não está disponível.", args_model=CheckPriceArgs, handler=check_price, write_action=False),
             ToolSpec(name="get_customer_by_email", description="Busca um cliente do tenant atual pelo email. Nunca acessa outro tenant.", args_model=GetCustomerByEmailArgs, handler=get_customer_by_email, write_action=False),
             ToolSpec(name="check_availability", description="Consulta disponibilidade usando timezone e horário comercial configurados para o tenant.", args_model=CheckAvailabilityArgs, handler=check_availability, write_action=False),
-            ToolSpec(name="search_knowledge", description="Busca informações factuais, políticas, implantação e documentação na base RAG do tenant atual. Use em vez de inventar informações não disponíveis em outras tools.", args_model=SearchKnowledgeArgs, handler=search_knowledge, write_action=False),
+            ToolSpec(name="search_knowledge", description="Busca informações factuais e documentais na base RAG do tenant atual. Também é o fallback documental quando check_price retornar found=false. Preço encontrado aqui é documental e não substitui um preço oficial encontrado no catálogo.", args_model=SearchKnowledgeArgs, handler=search_knowledge, write_action=False),
             ToolSpec(name="create_lead", description="Cria um lead comercial após o usuário fornecer nome, email e interesse.", args_model=CreateLeadArgs, handler=create_lead, write_action=True),
         ]
     )

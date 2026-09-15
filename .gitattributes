@@ -1,0 +1,26 @@
+# Line ending policy for cross-platform development.
+# Files executed inside Linux containers must always remain LF, even when
+# the repository is cloned or edited on Windows.
+
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+
+# PowerShell is primarily used from Windows in this project.
+*.ps1 text eol=crlf
+
+# Binary artifacts must never be line-ending normalized.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.zip binary

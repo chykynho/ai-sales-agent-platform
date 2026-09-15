@@ -48,9 +48,23 @@ async def check_price(ctx: ToolContext, args: CheckPriceArgs) -> dict:
         TenantProduct.is_active.is_(True),
     ))).scalar_one_or_none()
     if item is None:
-        return {"found": False, "product_code": code}
+        return {
+            "found": False,
+            "product_code": code,
+            "source": "catalog",
+            "fallback_recommended": True,
+            "fallback_tool": "search_knowledge",
+            "fallback_query": f"Qual é o preço do produto {code}?",
+            "message": (
+                "Produto não encontrado no catálogo estruturado do tenant. "
+                "Antes de concluir que o preço não está disponível, consulte "
+                "search_knowledge usando fallback_query."
+            ),
+        }
     return {
         "found": True,
+        "source": "catalog",
+        "authoritative_price": True,
         "product_code": code,
         "product_name": item.name,
         "currency": item.currency,

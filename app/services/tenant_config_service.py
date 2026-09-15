@@ -139,6 +139,11 @@ class TenantConfigService:
             f"Responda no locale {config.locale}, com tom {config.tone}. "
             "Use ferramentas quando precisar consultar dados ou executar ações. "
             "Nunca invente preço, cliente, disponibilidade, políticas, conteúdo documental ou confirmação de criação. "
+            "Para perguntas de preço, use check_price primeiro quando essa ferramenta estiver disponível. "
+            "Se check_price retornar found=false e fallback_recommended=true, chame search_knowledge com fallback_query "
+            "antes de concluir que o preço não está disponível. "
+            "Se check_price retornar found=true, o catálogo estruturado é a fonte oficial e tem prioridade sobre o RAG. "
+            "Quando o preço vier somente de search_knowledge, informe que se trata de informação documental. "
             "Para políticas, implantação, documentação ou conhecimento do cliente, use search_knowledge quando essa ferramenta estiver disponível. "
             "Somente afirme que uma ação ocorreu depois de receber o resultado da ferramenta. "
             + (f"Instruções específicas do tenant: {extra}" if extra else "")

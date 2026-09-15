@@ -18,7 +18,11 @@ COPY pyproject.toml /app/
 FROM base AS development
 RUN pip install --no-cache-dir ".[dev,security]"
 COPY . /app
-RUN chmod +x /app/scripts/entrypoint.sh && chown -R app:app /app
+# Defensive EOL normalization: shell scripts are executed by Linux even when
+# the source tree was prepared on Windows or extracted from a ZIP.
+RUN find /app/scripts -type f -name "*.sh" -exec sed -i 's/\r$//' {} + && \
+    chmod +x /app/scripts/entrypoint.sh && \
+    chown -R app:app /app
 USER app
 EXPOSE 8000
 ENTRYPOINT ["/app/scripts/entrypoint.sh"]
@@ -30,8 +34,14 @@ COPY app /app/app
 COPY alembic /app/alembic
 COPY alembic.ini /app/alembic.ini
 COPY scripts /app/scripts
-RUN chmod +x /app/scripts/entrypoint.sh && chown -R app:app /app
+# Same defense in production so a CRLF source file can never break the Linux
+# shebang before the application starts.
+RUN find /app/scripts -type f -name "*.sh" -exec sed -i 's/\r$//' {} + && \
+    chmod +x /app/scripts/entrypoint.sh && \
+    chown -R app:app /app
 USER app
-EXPOSE 8000
+# Cloud Run injects PORT (normally 8080). The image still falls back to 8000
+# outside managed serverless environments so local/other cloud usage remains compatible.
+EXPOSE 8080
 ENTRYPOINT ["/app/scripts/entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

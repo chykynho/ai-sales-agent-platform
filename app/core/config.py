@@ -3,11 +3,15 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
 import tomllib
 from typing import Literal
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 _PACKAGE_NAME = "ai-sales-agent-platform"
 _UNKNOWN_VERSION = "0.0.0+unknown"
+_POSTGRES_SCHEMES = {"postgres", "postgresql", "postgresql+asyncpg"}
 
 
 def _default_app_version() -> str:
@@ -21,6 +25,84 @@ def _default_app_version() -> str:
         except (OSError, tomllib.TOMLDecodeError):
             return _UNKNOWN_VERSION
         return str(data.get("project", {}).get("version") or _UNKNOWN_VERSION)
+
+
+def _require_postgres_url(raw_url: str) -> str:
+    value = raw_url.strip()
+    parsed = urlsplit(value)
+    if parsed.scheme not in _POSTGRES_SCHEMES:
+        raise ValueError(
+            "DATABASE_URL/LANGGRAPH_DATABASE_URL deve usar uma URL PostgreSQL: postgres://, "
+            "postgresql:// ou postgresql+asyncpg://"
+        )
+    if not parsed.hostname:
+        raise ValueError("DATABASE_URL/LANGGRAPH_DATABASE_URL deve informar um host PostgreSQL")
+    return value
+
+
+def _to_asyncpg_url(raw_url: str) -> str:
+    """Converte URL PostgreSQL/libpq (ex.: Neon) para SQLAlchemy + asyncpg.
+
+    Neon normalmente entrega sslmode=require&channel_binding=require. Quando a URL
+    passa pelo dialeto SQLAlchemy asyncpg, esses nomes nao sao kwargs validos de
+    asyncpg.connect(); usamos ssl=require e removemos channel_binding somente da URL
+    do asyncpg. A URL psycopg/LangGraph permanece no formato libpq original.
+    """
+    value = _require_postgres_url(raw_url)
+    parsed = urlsplit(value)
+
+    query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    has_ssl = any(key.lower() == "ssl" for key, _ in query_pairs)
+    normalized_query: list[tuple[str, str]] = []
+
+    for key, item_value in query_pairs:
+        lowered = key.lower()
+        if lowered == "channel_binding":
+            continue
+        if lowered == "sslmode":
+            if not has_ssl:
+                normalized_query.append(("ssl", item_value))
+                has_ssl = True
+            continue
+        normalized_query.append((key, item_value))
+
+    return urlunsplit(
+        (
+            "postgresql+asyncpg",
+            parsed.netloc,
+            parsed.path,
+            urlencode(normalized_query, doseq=True),
+            parsed.fragment,
+        )
+    )
+
+
+def _to_psycopg_url(raw_url: str) -> str:
+    """Converte eventual URL asyncpg para uma URL libpq/psycopg."""
+    value = _require_postgres_url(raw_url)
+    parsed = urlsplit(value)
+
+    query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    has_sslmode = any(key.lower() == "sslmode" for key, _ in query_pairs)
+    normalized_query: list[tuple[str, str]] = []
+
+    for key, item_value in query_pairs:
+        lowered = key.lower()
+        if lowered == "ssl" and not has_sslmode:
+            normalized_query.append(("sslmode", item_value))
+            has_sslmode = True
+            continue
+        normalized_query.append((key, item_value))
+
+    return urlunsplit(
+        (
+            "postgresql",
+            parsed.netloc,
+            parsed.path,
+            urlencode(normalized_query, doseq=True),
+            parsed.fragment,
+        )
+    )
 
 
 class Settings(BaseSettings):
@@ -39,6 +121,20 @@ class Settings(BaseSettings):
     postgres_db: str = "aiagent"
     postgres_host: str = "localhost"
     postgres_port: int = 5432
+
+    # v0.15.1 Cloud Connectivity
+    # DATABASE_URL aceita a URL PostgreSQL/libpq fornecida por Neon. A propriedade
+    # database_url converte automaticamente para o formato SQLAlchemy + asyncpg.
+    database_url_env: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL", "database_url_env"),
+    )
+    # Opcional. Permite usar, por exemplo, a URL DIRECT do Neon para LangGraph
+    # enquanto DATABASE_URL usa o endpoint POOLED da aplicacao.
+    langgraph_database_url_env: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LANGGRAPH_DATABASE_URL", "langgraph_database_url_env"),
+    )
 
     redis_url: str = "redis://localhost:6379/0"
 
@@ -59,7 +155,6 @@ class Settings(BaseSettings):
     knowledge_chunk_overlap_chars: int = 200
     rag_top_k: int = 5
     rag_min_similarity: float = 0.15
-
 
     whatsapp_verify_token: str = "local-v08-verify-token"
     whatsapp_app_secret: str = "local-v08-app-secret-change-me"
@@ -103,7 +198,7 @@ class Settings(BaseSettings):
     observability_trace_console: bool = False
     observability_tenant_labels: bool = True
 
-    # v0.13 Resiliência / Performance / Load Testing
+    # v0.13 Resiliencia / Performance / Load Testing
     resilience_enabled: bool = True
     resilience_fail_open: bool = True
     resilience_rate_limit_enabled: bool = True
@@ -118,8 +213,8 @@ class Settings(BaseSettings):
     resilience_circuit_failure_window_seconds: int = 60
     resilience_circuit_cooldown_seconds: int = 30
     resilience_circuit_probe_lock_seconds: int = 10
-    # O SDK OpenAI já possui retries internos. Mantemos 1 tentativa externa por padrão
-    # para não multiplicar chamadas; aumente somente para providers sem retry próprio.
+    # O SDK OpenAI ja possui retries internos. Mantemos 1 tentativa externa por padrao
+    # para nao multiplicar chamadas; aumente somente para providers sem retry proprio.
     resilience_retry_max_attempts: int = 1
     resilience_retry_base_delay_seconds: float = 0.25
     resilience_retry_max_delay_seconds: float = 2.0
@@ -134,10 +229,17 @@ class Settings(BaseSettings):
     bootstrap_admin_email: str = "admin@example.com"
     bootstrap_admin_password: str = "ChangeMe123!"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     @property
     def database_url(self) -> str:
+        if self.database_url_env:
+            return _to_asyncpg_url(self.database_url_env)
         return (
             f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
@@ -146,6 +248,10 @@ class Settings(BaseSettings):
     @property
     def langgraph_database_url(self) -> str:
         # LangGraph PostgresSaver uses psycopg, not SQLAlchemy/asyncpg.
+        if self.langgraph_database_url_env:
+            return _to_psycopg_url(self.langgraph_database_url_env)
+        if self.database_url_env:
+            return _to_psycopg_url(self.database_url_env)
         return (
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"

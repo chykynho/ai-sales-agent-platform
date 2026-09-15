@@ -4,35 +4,73 @@ import logging
 from typing import Any
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from psycopg.rows import dict_row
+from psycopg_pool import AsyncConnectionPool
 
 from app.agent.graph import build_sales_agent_graph
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_checkpointer_cm: Any | None = None
+_checkpointer_pool: AsyncConnectionPool | None = None
 _checkpointer: AsyncPostgresSaver | None = None
 _sales_graph: Any | None = None
 
 
 async def start_agent_runtime() -> None:
-    global _checkpointer_cm, _checkpointer, _sales_graph
+    global _checkpointer_pool, _checkpointer, _sales_graph
+
     if _sales_graph is not None:
         return
 
-    _checkpointer_cm = AsyncPostgresSaver.from_conn_string(settings.langgraph_database_url)
-    _checkpointer = await _checkpointer_cm.__aenter__()
-    _sales_graph = build_sales_agent_graph(_checkpointer)
-    logger.info("LangGraph runtime started with PostgreSQL checkpointing")
+    pool = AsyncConnectionPool(
+        conninfo=settings.langgraph_database_url,
+        min_size=0,
+        max_size=5,
+        open=False,
+        kwargs={
+            "autocommit": True,
+            "prepare_threshold": 0,
+            "row_factory": dict_row,
+        },
+        check=AsyncConnectionPool.check_connection,
+        max_idle=60.0,
+        max_lifetime=900.0,
+        reconnect_timeout=30.0,
+        name="langgraph-checkpoint-pool",
+    )
+
+    try:
+        await pool.open()
+        _checkpointer_pool = pool
+        _checkpointer = AsyncPostgresSaver(pool)
+        _sales_graph = build_sales_agent_graph(_checkpointer)
+
+        logger.info(
+            "LangGraph runtime started with PostgreSQL checkpoint pooling",
+            extra={
+                "langgraph_pool_min_size": 0,
+                "langgraph_pool_max_size": 5,
+            },
+        )
+    except Exception:
+        await pool.close()
+        _checkpointer_pool = None
+        _checkpointer = None
+        _sales_graph = None
+        raise
 
 
 async def stop_agent_runtime() -> None:
-    global _checkpointer_cm, _checkpointer, _sales_graph
+    global _checkpointer_pool, _checkpointer, _sales_graph
+
     _sales_graph = None
     _checkpointer = None
-    if _checkpointer_cm is not None:
-        await _checkpointer_cm.__aexit__(None, None, None)
-    _checkpointer_cm = None
+
+    if _checkpointer_pool is not None:
+        await _checkpointer_pool.close()
+
+    _checkpointer_pool = None
     logger.info("LangGraph runtime stopped")
 
 

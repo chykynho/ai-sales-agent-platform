@@ -6,16 +6,17 @@ import tomllib
 from app.core.config import _default_app_version, settings
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_VERSION = "0.15.3"
 
 
-def test_v015_version_contract():
+def test_v0153_version_contract():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     project_version = pyproject["project"]["version"]
-    assert project_version == "0.15.0"
+    assert project_version == EXPECTED_VERSION
     assert _default_app_version() == project_version
     assert settings.app_version == project_version
     config = (ROOT / "app/core/config.py").read_text(encoding="utf-8")
-    assert 'app_version: str = "0.15.0"' not in config
+    assert "app_version: str = _default_app_version()" in config
 
 
 def test_ci_workflow_has_required_quality_and_security_gates():
@@ -129,6 +130,10 @@ def test_operational_scripts_and_docs_exist():
         "UPGRADE_v0.15.0.md",
         "V0.15.md",
         "VALIDACAO_v0.15_PTBR.md",
+        "scripts/upgrade_v151.ps1",
+        "README_HOTFIX_v0.15.1.md",
+        "UPGRADE_v0.15.1.md",
+        "V0.15.1.md",
     ):
         assert (ROOT / path).exists(), path
 
@@ -141,8 +146,8 @@ def test_build_artifacts_are_ignored_untracked_and_wheel_build_is_isolated():
     for token in ("build", "dist", "*.egg-info", "*.whl"):
         assert token in dockerignore
 
-    # A imagem/container de desenvolvimento não carrega o binário Git nem o diretório .git.
-    # A verificação de arquivos rastreados pertence ao host/GitHub Runner, não ao pytest.
+    # A imagem/container de desenvolvimento nao carrega o binario Git nem o diretorio .git.
+    # A verificacao de arquivos rastreados pertence ao host/GitHub Runner, nao ao pytest.
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     assert "git ls-files" in workflow
     assert "Repository hygiene - artefatos nao rastreados" in workflow

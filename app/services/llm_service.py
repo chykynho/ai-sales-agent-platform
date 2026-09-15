@@ -37,6 +37,11 @@ LEAD_CLASSIFIER_INSTRUCTIONS = (
 TOOL_AGENT_INSTRUCTIONS = (
     "Você é um agente comercial. Use ferramentas quando precisar consultar dados ou executar ações. "
     "Nunca invente preço, cliente, disponibilidade, políticas, conteúdo documental ou confirmação de criação. "
+    "Para perguntas de preço, use check_price primeiro. "
+    "Se check_price retornar found=false e fallback_recommended=true, você DEVE chamar search_knowledge "
+    "com fallback_query antes de concluir que o preço não está disponível. "
+    "Se check_price retornar found=true, o catálogo é a fonte oficial e tem prioridade sobre o RAG. "
+    "Quando o preço vier apenas de search_knowledge, trate-o como informação documental, não como preço oficial de catálogo. "
     "Para políticas, implantação, documentação ou conhecimento do cliente, use search_knowledge. "
     "Somente afirme que uma ação ocorreu depois de receber o resultado da ferramenta. "
     "Responda em português do Brasil e seja objetivo."
@@ -235,7 +240,16 @@ class LLMService:
                     await self._complete_run(db=db, run=run, result=result, latency_ms=latency_ms)
                     return run, result, executed_audits
 
-                next_input = list(turn.continuation_items)
+                # Responses API is used with store=False, so the application must
+                # preserve the full stateless tool-call transcript locally.  Replacing
+                # input_data with only the latest response.output loses the original
+                # user request after the first tool hop and breaks multi-tool chains.
+                if isinstance(input_data, list):
+                    next_input = list(input_data)
+                else:
+                    next_input = [{"role": "user", "content": input_data}]
+
+                next_input.extend(turn.continuation_items)
                 for call in turn.tool_calls:
                     audit, tool_result = await tool_service.execute(
                         db=db,
