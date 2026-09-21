@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 from sqlalchemy import text
 
 from app.core.config import settings
@@ -17,10 +17,12 @@ async def _dependency_status() -> tuple[bool, bool]:
         postgres_ok = True
     except Exception:
         postgres_ok = False
+
     try:
         redis_ok = bool(await redis_client.ping())
     except Exception:
         redis_ok = False
+
     return postgres_ok, redis_ok
 
 
@@ -30,8 +32,12 @@ async def liveness() -> dict:
 
 
 @router.get("/health/ready")
-async def readiness() -> dict:
+async def readiness(response: Response) -> dict:
     postgres_ok, redis_ok = await _dependency_status()
+
+    if not postgres_ok or not redis_ok:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
     return {
         "status": "ok" if postgres_ok and redis_ok else "degraded",
         "postgres": postgres_ok,
@@ -41,5 +47,5 @@ async def readiness() -> dict:
 
 
 @router.get("/health")
-async def health() -> dict:
-    return await readiness()
+async def health(response: Response) -> dict:
+    return await readiness(response)
