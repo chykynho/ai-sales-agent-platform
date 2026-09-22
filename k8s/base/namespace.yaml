@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sre-support-lab
+  labels:
+    app.kubernetes.io/part-of: ai-sales-agent-platform
+    environment: sre-lab

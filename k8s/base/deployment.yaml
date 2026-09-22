@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: crm-api
+  namespace: sre-support-lab
+  labels:
+    app.kubernetes.io/name: crm-api
+    app.kubernetes.io/part-of: ai-sales-agent-platform
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: crm-api
+
+  template:
+    metadata:
+      labels:
+        app: crm-api
+        app.kubernetes.io/name: crm-api
+        app.kubernetes.io/part-of: ai-sales-agent-platform
+
+    spec:
+      containers:
+        - name: crm-api
+
+          image: 010079149526.dkr.ecr.us-east-1.amazonaws.com/sre-support-lab-ai-sales-agent:0.15.4-e5341ec
+
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: crm-api-config
+
+            - secretRef:
+                name: crm-api-secrets
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "384Mi"
+
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+
+          startupProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+            timeoutSeconds: 2
+
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 3
+
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 2
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

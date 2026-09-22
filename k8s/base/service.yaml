@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: crm-api
+  namespace: sre-support-lab
+  labels:
+    app.kubernetes.io/name: crm-api
+    app.kubernetes.io/part-of: ai-sales-agent-platform
+
+spec:
+  type: ClusterIP
+
+  selector:
+    app: crm-api
+
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http

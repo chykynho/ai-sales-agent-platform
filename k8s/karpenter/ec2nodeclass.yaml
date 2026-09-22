@@ -1,0 +1,21 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: sre-general
+spec:
+  role: KarpenterNodeRole-sre-support-lab
+
+  amiSelectorTerms:
+    - alias: al2023@latest
+
+  subnetSelectorTerms:
+    - id: subnet-038ce83d19dd3769c
+    - id: subnet-054b1709068bf2044
+
+  securityGroupSelectorTerms:
+    - id: sg-0d93aa01d535c36cf
+
+  tags:
+    Name: sre-support-lab-karpenter
+    Environment: sre-lab
+    ManagedBy: karpenter

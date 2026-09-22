@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crm-api-config
+  namespace: sre-support-lab
+  labels:
+    app.kubernetes.io/name: crm-api
+    app.kubernetes.io/part-of: ai-sales-agent-platform
+data:
+  APP_ENV: "sre-lab"
+  APP_DEBUG: "false"
+  API_V1_PREFIX: "/api/v1"
+  RUN_MIGRATIONS: "false"
+  RUN_BOOTSTRAP: "false"
+  LLM_PROVIDER: "openai"
+  LANGGRAPH_STRICT_MSGPACK: "true"
+  OBSERVABILITY_ENABLED: "true"
+  OBSERVABILITY_LOG_JSON: "true"
+  OBSERVABILITY_METRICS_ENABLED: "true"
+  OBSERVABILITY_TRACING_ENABLED: "true"
+  OBSERVABILITY_SERVICE_NAME: "ai-sales-agent-platform"
+  PORT: "8000"
