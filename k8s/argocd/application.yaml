@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+
+metadata:
+  name: crm-api
+  namespace: argocd
+
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/chykynho/ai-sales-agent-platform.git
+    targetRevision: sre-support-lab
+    path: k8s/base
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sre-support-lab
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+
+    syncOptions:
+      - RespectIgnoreDifferences=true
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: crm-api
+      namespace: sre-support-lab
+      jsonPointers:
+        - /spec/replicas
